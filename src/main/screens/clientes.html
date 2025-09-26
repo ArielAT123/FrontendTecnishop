@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gestión de Clientes</title>
+</head>
+
+<body>
+    <div id="clientes" class="content-area">
+        <!-- Botón para mostrar el formulario -->
+        <button id="toggle-form-button" class="btn btn-primary">Agregar Nuevo Cliente</button>
+        <!-- Contenedor del formulario -->
+        <div id="cliente-form-container" class="card">
+            <h3>Agregar Nuevo Cliente</h3>
+            <form id="cliente-form">
+                <div class="form-group">
+                    <label for="ci">Cédula de Identidad *</label>
+                    <input type="text" id="ci" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="nombre">Nombre *</label>
+                    <input type="text" id="nombre" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="apellido">Apellido</label>
+                    <input type="text" id="apellido" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="telefono">Teléfono</label>
+                    <input type="text" id="telefono" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="correo">Correo Electrónico</label>
+                    <input type="email" id="correo" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+            </form>
+        </div>
+        <div class="card">
+            <h3>Lista de Clientes</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Cédula</th>
+                        <th>Nombre</th>
+                        <th>Apellido</th>
+                        <th>Teléfono</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="clientes-list">
+                    <!-- Los clientes se cargarán aquí dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+
+</html>

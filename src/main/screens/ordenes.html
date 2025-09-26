@@ -1,0 +1,39 @@
+<div id="ordenes" class="content-area">
+  <div class="card">
+    <h3>Crear Nueva Orden de Servicio</h3>
+    <form id="orden-form">
+      <div class="form-group">
+        <label for="equipo-orden">Equipo *</label>
+        <select id="equipo-orden" class="form-control" required>
+          <option value="">Seleccione un equipo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="fecha">Fecha *</label>
+        <input type="date" id="fecha" class="form-control" required>
+      </div>
+      <div class="form-group">
+        <label for="realiza-orden">Realiza la Orden *</label>
+        <input type="text" id="realiza-orden" class="form-control" required>
+      </div>
+      <div class="form-group">
+        <label for="problema">Problema Reportado *</label>
+        <textarea id="problema" class="form-control" rows="3" required></textarea>
+      </div>
+      <div class="form-group">
+        <label>Observaciones</label>
+        <div>
+          <label><input type="checkbox" id="cargador"> Cargador</label>
+          <label><input type="checkbox" id="bateria"> Batería</label>
+          <label><input type="checkbox" id="cable-poder"> Cable de Poder</label>
+          <label><input type="checkbox" id="cable-datos"> Cable de Datos</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="otros">Otros</label>
+        <textarea id="otros" class="form-control" rows="2"></textarea>
+      </div>
+      <button type="submit" class="btn btn-success">Crear Orden</button>
+    </form>
+  </div>
+</div>

@@ -105,7 +105,7 @@ async function getOrdenes(limit = 10) {
 // Función para obtener el detalle de una orden
 async function getDetalleOrden(ordenId) {
   try {
-    const response = await fetch(`${API_BASE_URL}/orden/${ordenId}/`, {
+    const response = await fetch(`${API_BASE_URL}/ordenes/${ordenId}/`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -199,6 +199,8 @@ function initializeNavigation() {
     });
   });
 }
+
+
 
 // Función para cargar contenido dinámicamente
 async function loadContent(section) {

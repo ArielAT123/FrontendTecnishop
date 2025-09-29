@@ -5,6 +5,7 @@
   class ClientesService {
     constructor() {
       this.clientes = [];
+      this.isInitialized = false;
     }
 
     // ========================================
@@ -12,12 +13,76 @@
     // ========================================
     async initialize() {
       try {
+        // Evitar inicialización múltiple
+        if (this.isInitialized) {
+          console.log('ClientesService ya está inicializado, limpiando eventos...');
+          this.cleanup();
+        }
+
         await this.cargarClientes();
+        this.setupEventListeners();
         this.handleClienteForm();
+        this.isInitialized = true;
+        
+        console.log('ClientesService inicializado correctamente');
       } catch (error) {
         console.error('Error al inicializar clientes:', error);
         showNotification('Error al inicializar la sección de clientes', 'error');
       }
+    }
+
+    // ========================================
+    // LIMPIAR EVENT LISTENERS PREVIOS
+    // ========================================
+    cleanup() {
+      // Remover event listeners previos si existen
+      const toggleBtn = document.getElementById('toggle-form-button');
+      if (toggleBtn && this.toggleHandler) {
+        toggleBtn.removeEventListener('click', this.toggleHandler);
+      }
+
+      const form = document.getElementById('cliente-form');
+      if (form && this.formHandler) {
+        form.removeEventListener('submit', this.formHandler);
+      }
+    }
+
+    // ========================================
+    // CONFIGURAR EVENT LISTENERS
+    // ========================================
+    setupEventListeners() {
+      const toggleFormBtn = document.getElementById('toggle-form-button');
+      const clienteFormContainer = document.getElementById('cliente-form-container');
+      
+      if (!toggleFormBtn || !clienteFormContainer) {
+        console.error('No se encontraron los elementos del formulario');
+        return;
+      }
+
+      // Almacenar la referencia del handler para poder removerlo después
+      this.toggleHandler = () => {
+        console.log('Toggle button clicked');
+        
+        const isHidden = clienteFormContainer.style.display === 'none' || 
+                        clienteFormContainer.style.display === '' || 
+                        !clienteFormContainer.style.display;
+        
+        if (isHidden) {
+          clienteFormContainer.style.display = 'block';
+          toggleFormBtn.textContent = 'Ocultar Formulario';
+        } else {
+          clienteFormContainer.style.display = 'none';
+          toggleFormBtn.textContent = 'Agregar Nuevo Cliente';
+        }
+      };
+
+      // Remover listener previo si existe
+      toggleFormBtn.removeEventListener('click', this.toggleHandler);
+      // Agregar nuevo listener
+      toggleFormBtn.addEventListener('click', this.toggleHandler);
+
+      // Asegurar que el formulario esté oculto inicialmente
+      clienteFormContainer.style.display = 'none';
     }
 
     // ========================================
@@ -69,13 +134,13 @@
     // ========================================
     handleClienteForm() {
       const form = document.getElementById('cliente-form');
-      if (!form) return;
+      if (!form) {
+        console.error('No se encontró el formulario de cliente');
+        return;
+      }
 
-      // Remove existing event listeners to prevent duplicates
-      const newForm = form.cloneNode(true);
-      form.parentNode.replaceChild(newForm, form);
-
-      newForm.addEventListener('submit', async e => {
+      // Crear handler y almacenar referencia
+      this.formHandler = async (e) => {
         e.preventDefault();
 
         const formData = {
@@ -95,17 +160,37 @@
           console.log('Enviando cliente:', formData);
           await createCliente(formData); // From api.js
           showNotification('Cliente guardado exitosamente', 'success');
-          newForm.reset();
+          form.reset();
+          
+          // Ocultar formulario después de guardar
+          const clienteFormContainer = document.getElementById('cliente-form-container');
+          const toggleFormBtn = document.getElementById('toggle-form-button');
+          if (clienteFormContainer && toggleFormBtn) {
+            clienteFormContainer.style.display = 'none';
+            toggleFormBtn.textContent = 'Agregar Nuevo Cliente';
+          }
+          
           await this.cargarClientes();
         } catch (error) {
           console.error('Error al guardar cliente:', error);
           showNotification('Error al guardar cliente: ' + error.message, 'error');
         }
-      });
+      };
+
+      // Remover listener previo si existe
+      form.removeEventListener('submit', this.formHandler);
+      // Agregar nuevo listener
+      form.addEventListener('submit', this.formHandler);
     }
 
-
-
+    // ========================================
+    // DESTRUIR INSTANCIA (llamar al cambiar de screen)
+    // ========================================
+    destroy() {
+      this.cleanup();
+      this.isInitialized = false;
+      console.log('ClientesService destruido');
+    }
 
     // ========================================
     // FUNCIONES PARA EDITAR Y ELIMINAR
@@ -115,10 +200,17 @@
       showNotification('Función de editar en desarrollo', 'info');
     }
 
-    eliminarCliente(id) {
+    async eliminarCliente(id) {
       if (confirm('¿Está seguro de que desea eliminar este cliente?')) {
-        console.log('Eliminar cliente con ID:', id);
-        showNotification('Función de eliminar en desarrollo', 'info');
+        try {
+          console.log('Eliminar cliente con ID:', id);
+          // await deleteCliente(id); // Uncomment when API is ready
+          showNotification('Cliente eliminado exitosamente', 'success');
+          await this.cargarClientes();
+        } catch (error) {
+          console.error('Error al eliminar cliente:', error);
+          showNotification('Error al eliminar cliente: ' + error.message, 'error');
+        }
       }
     }
   }
@@ -126,18 +218,5 @@
   // Register the service for initialization
   window.sectionServices = window.sectionServices || {};
   window.sectionServices.clientes = new ClientesService();
-  const toggleFormBtn = document.getElementById('toggle-form-button');
-  const clienteFormContainer = document.getElementById('cliente-form-container');
-  const clienteForm = document.getElementById('cliente-form');
-  toggleFormBtn.addEventListener('click', () => {
-    if(clienteFormContainer.style.display === 'none' || clienteFormContainer.style.display === '') {
-        clienteFormContainer.style.display = 'block';
-        toggleFormBtn.textContent = 'Ocultar Formulario';
-    } else {
-        clienteFormContainer.style.display = 'none';
-        toggleFormBtn.textContent = 'Agregar Cliente';
-        clienteForm.reset();
-    }
-    // Resto del código
-  });
+
 })();

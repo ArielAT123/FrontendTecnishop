@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Orden de Servicio</title>
+  <style>
+    section{
+      padding: 5px;
+      border: 2px solid #000;
+      margin-bottom: 5px;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    td, th {
+      padding: 5px;
+      vertical-align: top;
+    }
+    .bordered {
+      border: 1px solid #000;
+    }
+    .no-border {
+      border: none;
+    }
+    .subheader {
+      font-size: 12px;
+      text-align: left;
+    }
+    .title {
+      text-align: left;
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .conditions {
+      font-size: 11px;
+      text-align: justify;
+    }
+  </style>
+</head>
+<body>
+<section>
+  <table>
+    <tr>
+      <td colspan="2" class="title bordered">
+        www.intecnic.com
+      </td>
+      <td colspan="4" class="title bordered">
+        Orden <br>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="3" class="subheader bordered">
+        CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2 <br>
+        Teléfonos: 0999339586 (WhatsApp) <br>
+        R.U.C. 0917526758001 <br>
+        Email: tecnishop.imp@gmail.com
+      </td>
+      <td colspan="2" class="bordered">
+        <b>No: </b><span id="reporte-numero"></span><br>
+      </td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <td width="15%" class="bordered"><b>CLIENTE:</b></td>
+      <td width="20%" class="bordered" id="reporte-cliente-nombre"></td>
+      <td width="15%" class="bordered"><b>C.I./R.U.C.:</b></td>
+      <td class="bordered" id="reporte-cliente-ci"></td>
+      <td width="15%" class="bordered"><b>FECHA:</b></td>
+      <td class="bordered" id="reporte-fecha"></td>
+    </tr>
+    <tr>
+      <td class="bordered"><b>TELÉFONO:</b></td>
+      <td class="bordered" id="reporte-telefono"></td>
+      <td class="bordered"><b>E-MAIL:</b></td>
+      <td colspan="3" class="bordered" id="reporte-email"></td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <th class="bordered">ARTICULO</th>
+      <th class="bordered">MARCA</th>
+      <th class="bordered">MODELO</th>
+      <th class="bordered">No. SERIE</th>
+      <th class="bordered">PROBLEMAS REPORTADOS</th>
+    </tr>
+    <tr>
+      <td class="bordered" id="reporte-articulo"></td>
+      <td class="bordered" id="reporte-marca"></td>
+      <td class="bordered" id="reporte-modelo"></td>
+      <td class="bordered" id="reporte-serie"></td>
+      <td style="height: 40px;" class="bordered" id="reporte-problemas"></td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <td rowspan="2" width="20%" class="bordered"><b>OBSERVACIONES</b></td>
+      <td width="10%" class="bordered"><b>CARGADOR</b></td>
+      <td width="10%" class="bordered" id="reporte-cargador"></td>
+      <td width="10%" class="bordered"><b>BATERIA</b></td>
+      <td width="10%" class="bordered" id="reporte-bateria"></td>
+      <td width="10%" class="bordered"><b>CABLE PODER</b></td>
+      <td width="10%" class="bordered" id="reporte-cable-poder"></td>
+      <td width="10%" class="bordered"><b>CABLE DATOS</b></td>
+      <td width="10%" class="bordered" id="reporte-cable-datos"></td>
+    </tr>
+    
+    <tr>
+      <td class="bordered"><b>OTROS:</b></td>
+      <td colspan="8" class="bordered" id="reporte-otros"></td>
+    </tr>
+  </table>
+
+  <p class="conditions">
+    <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O CHEQUEADO 
+    NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR VENTA Y/O DESECHO EN EL CASO 
+    DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO PRESENTE O FUTURO. TECNISHOP NO SE RESPONSABILIZA 
+    POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ 
+    UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
+  </p>
+
+  <table style="margin-top: 20px;">
+    <tr>
+      <td width="50%" class="no-border" style="text-align: center; height: 10%; vertical-align: bottom;">
+        <b>_______________________________<br>FIRMA DEL CLIENTE</b>
+      </td>
+      <td width="50%" class="no-border" style="text-align: center; height: 10%; vertical-align: bottom;">
+        <b>_______________________________<br>RECIBIDO POR</b>
+      </td>
+    </tr>
+  </table>
+</section>
+<section height="50%">
+  <table>
+    <tr>
+      <td colspan="3" class="title bordered">
+        www.intecnic.com
+      </td>
+      <td colspan="4" class="title bordered">
+        Orden <br>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="3" class="subheader bordered">
+        CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2 <br>
+        Teléfonos: 0999339586 (WhatsApp) <br>
+        R.U.C. 0917526758001 <br>
+        Email: tecnishop.imp@gmail.com
+      </td>
+      <td colspan="2" class="bordered">
+        <b>No: </b><span id="reporte-numero-2"></span><br>
+      </td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <td width="15%" class="bordered"><b>CLIENTE:</b></td>
+      <td width="20%" class="bordered" id="reporte-cliente-nombre-2"></td>
+      <td width="15%" class="bordered"><b>C.I./R.U.C.:</b></td>
+      <td class="bordered" id="reporte-cliente-ci-2"></td>
+      <td width="15%" class="bordered"><b>FECHA:</b></td>
+      <td class="bordered" id="reporte-fecha-2"></td>
+    </tr>
+    <tr>
+      <td class="bordered"><b>TELÉFONO:</b></td>
+      <td class="bordered" id="reporte-telefono-2"></td>
+      <td class="bordered"><b>E-MAIL:</b></td>
+      <td colspan="3" class="bordered" id="reporte-email-2"></td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <th class="bordered">ARTICULO</th>
+      <th class="bordered">MARCA</th>
+      <th class="bordered">MODELO</th>
+      <th class="bordered">No. SERIE</th>
+      <th class="bordered">PROBLEMAS REPORTADOS</th>
+    </tr>
+    <tr>
+      <td class="bordered" id="reporte-articulo-2"></td>
+      <td class="bordered" id="reporte-marca-2"></td>
+      <td class="bordered" id="reporte-modelo-2"></td>
+      <td class="bordered" id="reporte-serie-2"></td>
+      <td style="height: 40px;" class="bordered" id="reporte-problemas-2"></td>
+    </tr>
+  </table>
+
+  <table>
+    <tr>
+      <td rowspan="2" width="20%" class="bordered"><b>OBSERVACIONES</b></td>
+      <td width="10%" class="bordered"><b>CARGADOR</b></td>
+      <td width="10%" class="bordered" id="reporte-cargador-2"></td>
+      <td width="10%" class="bordered"><b>BATERIA</b></td>
+      <td width="10%" class="bordered" id="reporte-bateria-2"></td>
+      <td width="10%" class="bordered"><b>CABLE PODER</b></td>
+      <td width="10%" class="bordered" id="reporte-cable-poder-2"></td>
+      <td width="10%" class="bordered"><b>CABLE DATOS</b></td>
+      <td width="10%" class="bordered" id="reporte-cable-datos-2"></td>
+    </tr>
+    
+    <tr>
+      <td class="bordered"><b>OTROS:</b></td>
+      <td colspan="8" class="bordered" id="reporte-otros-2"></td>
+    </tr>
+  </table>
+
+  <p class="conditions">
+    <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O CHEQUEADO 
+    NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR VENTA Y/O DESECHO EN EL CASO 
+    DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO PRESENTE O FUTURO. TECNISHOP NO SE RESPONSABILIZA 
+    POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ 
+    UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
+  </p>
+
+  <table style="margin-top: 20px;">
+    <tr>
+      <td width="50%" class="no-border" style="text-align: center; height: 10%; vertical-align: bottom;">
+        <b>_______________________________<br>FIRMA DEL CLIENTE</b>
+      </td>
+      <td width="50%" class="no-border" style="text-align: center; height: 10%; vertical-align: bottom;">
+        <b>_______________________________<br>RECIBIDO POR</b>
+      </td>
+    </tr>
+  </table>
+</section>
+</body>
+</html>

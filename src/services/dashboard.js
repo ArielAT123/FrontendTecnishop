@@ -149,18 +149,17 @@
       const fechaOrden = new Date(orden.fecha);
       const hoy = new Date();
       const diffDias = Math.floor((hoy - fechaOrden) / (1000 * 60 * 60 * 24));
-      if (diffDias === 0) return 'Nuevo';
-      if (diffDias <= 2) return 'En proceso';
-      if (diffDias <= 7) return 'En revisión';
-      return 'Completado';
+      if (diffDias === 0 && orden.estado =="PENDIENTE") return 'NUEVO';
+      const estado= orden.estado
+      return estado;
     }
 
     obtenerClaseEstado(estado) {
       const clases = {
-        Nuevo: 'estado-nuevo',
-        'En proceso': 'estado-proceso',
-        'En revisión': 'estado-revision',
-        Completado: 'estado-completado',
+        NUEVO: 'estado-nuevo',
+        'PENDIENTE': 'estado-proceso',
+        'COBRADO': 'estado-revision',
+        COMPLETADO: 'estado-completado',
       };
       return clases[estado] || 'estado-default';
     }
@@ -184,7 +183,7 @@
       try {
         const [clientes, ordenes, equipos] = await Promise.all([
           getClientes(),
-          getOrdenes(100),
+          getOrdenes(10),
           getEquipos(),
         ]);
 

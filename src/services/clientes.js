@@ -1,4 +1,6 @@
 (function () {
+
+  const API_BASE_URL = 'https://backendtecnishop.onrender.com/api';
   // ========================================
   // CLIENTES SERVICE
   // ========================================
@@ -6,6 +8,24 @@
     constructor() {
       this.clientes = [];
       this.isInitialized = false;
+      this.clientesFiltrados = [];
+    }
+
+    async filtrar(criterio) {
+      this.clientesFiltrados = this.clientes.filter(cliente => {
+        const ci = cliente.ci || '';
+        const nombre = cliente.nombre || '';
+        const apellido = cliente.apellido || '';
+        const telefono = cliente.telefono || '';
+        const correo = cliente.correo || '';
+        return ci.includes(criterio) ||
+          nombre.toLowerCase().includes(criterio.toLowerCase()) ||
+          apellido.toLowerCase().includes(criterio.toLowerCase()) ||
+          telefono.includes(criterio) ||
+          (correo && correo.toLowerCase().includes(criterio.toLowerCase()));
+      });
+      console.log('Clientes filtrados:', this.clientesFiltrados);
+      this.cargarTablaClientes(this.clientesFiltrados);
     }
 
     // ========================================
@@ -23,7 +43,7 @@
         this.setupEventListeners();
         this.handleClienteForm();
         this.isInitialized = true;
-        
+
         console.log('ClientesService inicializado correctamente');
       } catch (error) {
         console.error('Error al inicializar clientes:', error);
@@ -45,6 +65,11 @@
       if (form && this.formHandler) {
         form.removeEventListener('submit', this.formHandler);
       }
+
+      const filtroInput = document.getElementById('filtro-clientes');
+      if (filtroInput && this.filtroHandler) {
+        filtroInput.removeEventListener('input', this.filtroHandler);
+      }
     }
 
     // ========================================
@@ -53,20 +78,20 @@
     setupEventListeners() {
       const toggleFormBtn = document.getElementById('toggle-form-button');
       const clienteFormContainer = document.getElementById('cliente-form-container');
-      
+
       if (!toggleFormBtn || !clienteFormContainer) {
         console.error('No se encontraron los elementos del formulario');
         return;
       }
 
-      // Almacenar la referencia del handler para poder removerlo después
+      // Handler del toggle button
       this.toggleHandler = () => {
         console.log('Toggle button clicked');
-        
-        const isHidden = clienteFormContainer.style.display === 'none' || 
-                        clienteFormContainer.style.display === '' || 
-                        !clienteFormContainer.style.display;
-        
+
+        const isHidden = clienteFormContainer.style.display === 'none' ||
+          clienteFormContainer.style.display === '' ||
+          !clienteFormContainer.style.display;
+
         if (isHidden) {
           clienteFormContainer.style.display = 'block';
           toggleFormBtn.textContent = 'Ocultar Formulario';
@@ -76,10 +101,54 @@
         }
       };
 
-      // Remover listener previo si existe
       toggleFormBtn.removeEventListener('click', this.toggleHandler);
-      // Agregar nuevo listener
       toggleFormBtn.addEventListener('click', this.toggleHandler);
+
+      // ========================================
+      // LISTENER PARA EL INPUT DE FILTRO (tiempo real)
+      // ========================================
+      const filtroInput = document.getElementById('filtro-clientes');
+
+      if (filtroInput) {
+        this.filtroHandler = (e) => {
+          const criterio = e.target.value.trim();
+          if (criterio === '') {
+            this.cargarTablaClientes(this.clientes);
+          } else {
+            this.filtrar(criterio);
+          }
+        };
+
+        filtroInput.removeEventListener('input', this.filtroHandler);
+        filtroInput.addEventListener('input', this.filtroHandler);
+      }
+
+      // ========================================
+      // LISTENER PARA EL BOTÓN DE FILTRAR
+      // ========================================
+      // const joinFilterBtn = document.getElementById('join-filter');
+
+      // if (joinFilterBtn) {
+      //   this.joinFilterHandler = () => {
+      //     console.log('Botón filtrar clickeado'); // Para debug
+
+      //     if (!filtroInput) {
+      //       console.error('No se encontró el input de filtro');
+      //       return;
+      //     }
+
+      //     const criterio = filtroInput.value.trim(); // ✅ Usar .value directamente
+
+      //     if (criterio === '') {
+      //       this.cargarTablaClientes(this.clientes);
+      //     } else {
+      //       this.filtrar(criterio);
+      //     }
+      //   };
+
+      //   joinFilterBtn.removeEventListener('click', this.joinFilterHandler);
+      //   joinFilterBtn.addEventListener('click', this.joinFilterHandler);
+      // }
 
       // Asegurar que el formulario esté oculto inicialmente
       clienteFormContainer.style.display = 'none';
@@ -88,38 +157,45 @@
     // ========================================
     // CARGAR CLIENTES EN LA TABLA
     // ========================================
+    // Función para cargar tabla de clientes
+    cargarTablaClientes(clientes) {
+      const tbody = document.getElementById('clientes-list');
+
+      if (!tbody) {
+        console.error('No se encontró el elemento clientes-list');
+        return;
+      }
+
+      tbody.innerHTML = '';
+
+      if (clientes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">No hay clientes registrados</td></tr>';
+        return;
+      }
+
+      clientes.forEach(cliente => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${cliente.ci || 'N/A'}</td>
+          <td>${cliente.nombre || 'N/A'}</td>
+          <td>${cliente.apellido || 'N/A'}</td>
+          <td>${cliente.telefono || 'N/A'}</td>
+          <td class="action-buttons">
+            <button class="btn-edit" onclick="window.sectionServices.clientes.editarCliente('${cliente.ci}')">Editar</button>
+            <button class="btn-delete" onclick="window.sectionServices.clientes.eliminarCliente('${cliente.ci}')">Eliminar</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Uso en cargarClientes:
     async cargarClientes() {
       try {
-        this.clientes = await getClientes(); // From api.js
+        this.clientes = await getClientes();
         console.log('Clientes cargados:', this.clientes);
+        this.cargarTablaClientes(this.clientes);
 
-        const tbody = document.getElementById('clientes-list');
-        if (!tbody) {
-          console.error('No se encontró el elemento clientes-list');
-          return;
-        }
-
-        tbody.innerHTML = '';
-
-        if (this.clientes.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5">No hay clientes registrados</td></tr>';
-          return;
-        }
-
-        this.clientes.forEach(cliente => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${cliente.ci || 'N/A'}</td>
-            <td>${cliente.nombre || 'N/A'}</td>
-            <td>${cliente.apellido || 'N/A'}</td>
-            <td>${cliente.telefono || 'N/A'}</td>
-            <td class="action-buttons">
-              <button class="btn-edit" onclick="window.sectionServices.clientes.editarCliente(${cliente.id})">Editar</button>
-              <button class="btn-delete" onclick="window.sectionServices.clientes.eliminarCliente(${cliente.id})">Eliminar</button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
       } catch (error) {
         console.error('Error al cargar clientes:', error);
         const tbody = document.getElementById('clientes-list');
@@ -161,7 +237,7 @@
           await createCliente(formData); // From api.js
           showNotification('Cliente guardado exitosamente', 'success');
           form.reset();
-          
+
           // Ocultar formulario después de guardar
           const clienteFormContainer = document.getElementById('cliente-form-container');
           const toggleFormBtn = document.getElementById('toggle-form-button');
@@ -169,7 +245,7 @@
             clienteFormContainer.style.display = 'none';
             toggleFormBtn.textContent = 'Agregar Nuevo Cliente';
           }
-          
+
           await this.cargarClientes();
         } catch (error) {
           console.error('Error al guardar cliente:', error);
@@ -204,7 +280,7 @@
       if (confirm('¿Está seguro de que desea eliminar este cliente?')) {
         try {
           console.log('Eliminar cliente con ID:', id);
-          // await deleteCliente(id); // Uncomment when API is ready
+          await this.deleteCliente(id);
           showNotification('Cliente eliminado exitosamente', 'success');
           await this.cargarClientes();
         } catch (error) {
@@ -213,10 +289,25 @@
         }
       }
     }
+
+    async deleteCliente(id) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/clientes/${id}/`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al eliminar cliente');
+        }
+      } catch (error) {
+        console.error('Error al eliminar cliente:', error);
+        throw error;
+      }
+    }
   }
 
   // Register the service for initialization
   window.sectionServices = window.sectionServices || {};
   window.sectionServices.clientes = new ClientesService();
 
-})();
+})();``

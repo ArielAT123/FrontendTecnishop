@@ -11,7 +11,7 @@
 <body>
   <div class="container">
     <!-- Sidebar Menu -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="logo">
         <h1>Tecni<span>shop</span></h1>
         <p>Sistema de Gestión</p>
@@ -82,10 +82,15 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           </svg>
           <div class="texto">
-          Configuración
+            Configuración
           </div>
         </div>
       </div>
+      <button id="toggle-sidebar" class="toggle-button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="24" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+      </button>
     </div>
 
     <!-- Main Content -->
@@ -109,6 +114,7 @@
   <script src="./src/services/api.js"></script>
   <script src="./src/assets/js/app.js"></script>
   <script src="./src/assets/js/navigation.js"></script>
+  <script src="./src/assets/js/sidebar.js"></script>
 </body>
 
 </html>

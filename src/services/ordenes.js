@@ -52,7 +52,7 @@
     // ========================================
     async obtenerOrdenCompleta(ordenId) {
       try {
-        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000/api';
+        const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
 
         const response = await fetch(`${API_BASE_URL}/ordenes/${ordenId}/`, {
           method: 'GET',
@@ -126,7 +126,7 @@
         }
 
         // Si no está en cache, buscar en la API
-        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000/api';
+        const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
         const response = await fetch(`${API_BASE_URL}/clientes/${clienteCi}/`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
@@ -207,7 +207,7 @@
     // ========================================
     async cargarOrdenesRecientes() {
       try {
-        const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000/api';
+        const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
 
         // Obtener las últimas 10 órdenes
         const response = await fetch(`${API_BASE_URL}/ordenes/0/10`, {
@@ -800,7 +800,7 @@
           const clienteData = JSON.parse(selectedOption.dataset.clienteData);
           document.getElementById('cliente-nombre').value = clienteData.nombre || '';
           document.getElementById('cliente-telefono').value = clienteData.telefono || '';
-          document.getElementById('cliente-correo').value = clienteData.email || '';
+          document.getElementById('cliente-correo').value = clienteData.correo || '';
         }
       });
     }
@@ -1051,7 +1051,7 @@
     // CREAR ORDEN COMPLETA CON PROGRESO
     // ========================================
     async crearOrdenCompleta(formData) {
-      const API_BASE_URL = window.API_BASE_URL || 'http://localhost:8000/api';
+      const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
 
       try {
         let cliente_ci = formData.cliente_ci;
@@ -1092,7 +1092,7 @@
           cliente_ci: cliente_ci,
           marca: formData.equipo_marca || 'Sin marca',
           modelo: formData.equipo_modelo || 'Sin modelo',
-          numero_serie: formData.numero_serie || null
+          numero_serie: formData.numero_serie || "N/S"
         };
 
         console.log('Creando equipo:', datosEquipo);
@@ -1117,7 +1117,7 @@
           bateria: formData.observaciones.bateria,
           cable_poder: formData.observaciones.cable_poder,
           cable_datos: formData.observaciones.cable_datos,
-          otros: formData.observaciones.otros || null
+          otros: formData.observaciones.otros || "Ninguna"
         };
 
         console.log('Creando observaciones:', datosObservaciones);

@@ -34,7 +34,7 @@
         this.isInitialized = true;
       } catch (error) {
         console.error('Error al inicializar productos:', error);
-        showNotification('Error al inicializar la sección de productos', 'error');
+        //showNotification('Error al inicializar la sección de productos', 'error');
       }
     }
 
@@ -54,6 +54,72 @@
     }
 
     setupEventListeners() {
+      //upload EXCEL
+      const uploadButton = document.getElementById("excel_upload");
+      const xlsxInput = document.getElementById("excel_products");
+
+      // Deshabilitar el botón inicialmente
+      uploadButton.disabled = true;
+
+      // Habilitar/deshabilitar botón cuando cambia el input
+      xlsxInput.addEventListener("change", (e) => {
+        const archivo = e.target.files[0];
+
+        if (archivo) {
+          // Validar extensión
+          const extension = archivo.name.split('.').pop().toLowerCase();
+          if (extension === 'xlsx' || extension === 'xls') {
+            uploadButton.disabled = false;
+            uploadButton.textContent = "Cargar productos";
+          } else {
+            uploadButton.disabled = true;
+            uploadButton.textContent = "Archivo no válido";
+            alert("Solo se permiten archivos .xlsx o .xls");
+            xlsxInput.value = ""; // Limpiar input
+          }
+        } else {
+          uploadButton.disabled = true;
+          uploadButton.textContent = "Cargar productos";
+        }
+      });
+
+      uploadButton.addEventListener("click", async (e) => {
+        e.preventDefault();
+
+        const archivo = xlsxInput.files[0];
+
+        if (!archivo) {
+          alert("Por favor selecciona un archivo Excel");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("archivo", archivo);
+
+        try {
+          uploadButton.disabled = true;
+          uploadButton.textContent = "Cargando...";
+
+          const data = await this.uploadExcelfile(formData);
+
+          console.log("Éxito:", data);
+          alert(`Productos creados: ${data.productos_creados}\nErrores: ${data.errores}`);
+          xlsxInput.value = "";
+
+          // Deshabilitar botón después de limpiar input
+          uploadButton.disabled = true;
+
+          await this.cargarProductos();
+
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Error al cargar el archivo: " + error.message);
+        } finally {
+          uploadButton.textContent = "Cargar productos";
+        }
+      });
+
+      //PRODUCTO FORM
       const toggleFormBtn = document.getElementById('toggle-producto-form-button');
       const productoFormContainer = document.getElementById('producto-form-container');
 
@@ -126,7 +192,13 @@
 
     async cargarProductos() {
       try {
-        const response = await fetch(`${API_BASE_URL}/productos`);
+        const response = await fetch(`${API_BASE_URL}/productos`, {
+          method: 'GET',
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          }
+        });
         if (!response.ok) throw new Error('Error al cargar productos');
         this.productos = await response.json();
         this.cargarTablaProductos(this.productos);
@@ -150,34 +222,34 @@
 
         const uploadImageInput = document.getElementById('upload_image');
         const image = uploadImageInput.files[0];
-        const nombre= document.getElementById('NombreProducto').value.trim().toUpperCase();
-        const codigo= document.getElementById('ID').value.trim().toUpperCase();
-        const imageData=new FormData();
-        imageData.append('image',image);
-        imageData.append('public_id',codigo);
-        imageData.append('folder',"productos");
+        const nombre = document.getElementById('NombreProducto').value.trim().toUpperCase();
+        const codigo = document.getElementById('ID').value.trim().toUpperCase();
+        const imageData = new FormData();
+        imageData.append('image', image);
+        imageData.append('public_id', codigo);
+        imageData.append('folder', "productos");
 
-        const imageResponse= await this.uploadImage(imageData);
+        const imageResponse = await this.uploadImage(imageData);
         console.log('URL de la imagen subida:', imageResponse.urls.original);
-        
+
 
         const formData = {
           nombre: nombre,
           codigo: codigo,
-          cantidad: document.getElementById('pvp').value.trim()|| '0',
-          precio_venta_sugerido: document.getElementById('stock').value.trim()|| '0',
+          cantidad: document.getElementById('pvp').value.trim() || '0',
+          precio_venta_sugerido: document.getElementById('stock').value.trim() || '0',
           imagen_base64: imageResponse.urls.original// Agregar manejo de imagen si es necesario
         };
-      
 
-        
+
+
         if (!formData.nombre || !formData.codigo) {
-          showNotification('Por favor complete los campos obligatorios', 'error');
+          //showNotification('Por favor complete los campos obligatorios', 'error');
           return;
         }
         try {
           await this.createProducto(formData);
-          showNotification('Producto guardado exitosamente', 'success');
+          //showNotification('Producto guardado exitosamente', 'success');
           form.reset();
           const productoFormContainer = document.getElementById('producto-form-container');
           const toggleFormBtn = document.getElementById('toggle-producto-form-button');
@@ -188,7 +260,7 @@
           await this.cargarProductos();
         } catch (error) {
           console.error('Error al guardar producto:', error);
-          showNotification('Error al guardar producto: ' + error.message, 'error');
+          //showNotification('Error al guardar producto: ' + error.message, 'error');
         }
       };
       form.removeEventListener('submit', this.formHandler);
@@ -201,29 +273,33 @@
     }
 
     editarProducto(id) {
-      showNotification('Función de editar producto en desarrollo', 'info');
+      //showNotification('Función de editar producto en desarrollo', 'info');
     }
 
     async eliminarProducto(id) {
       if (confirm('¿Está seguro de que desea eliminar este producto?')) {
         try {
           await this.deleteProducto(id);
-          showNotification('Producto eliminado exitosamente', 'success');
+          //showNotification('Producto eliminado exitosamente', 'success');
           await this.cargarProductos();
         } catch (error) {
           console.error('Error al eliminar producto:', error);
-          showNotification('Error al eliminar producto: ' + error.message, 'error');
+          //showNotification('Error al eliminar producto: ' + error.message, 'error');
         }
       }
     }
 
-    async uploadImage(data){
+    static async uploadImage(data) {
       console.log('Subiendo imagen con datos:', data);
-      const response= await fetch(`${API_BASE_URL}/cloudinary/upload/`, {
-        method:'POST',
+      const response = await fetch(`${API_BASE_URL}/cloudinary/upload/`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        },
         body: data,
       });
-      if(!response.ok) throw new Error('Error al subir imagen');
+      if (!response.ok) throw new Error('Error al subir imagen');
       return await response.json();
 
     }
@@ -232,7 +308,7 @@
       console.log('Creando producto con datos:', data);
       const response = await fetch(`${API_BASE_URL}/productos/crear/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${localStorage.getItem("accessToken")}` },
         body: JSON.stringify(data),
       });
       if (!response.ok) throw new Error('Error al crear producto');
@@ -242,9 +318,25 @@
     async deleteProducto(id) {
       const response = await fetch(`${API_BASE_URL}/productos/${id}/`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${localStorage.getItem("accessToken")}` },
       });
       if (!response.ok) throw new Error('Error al eliminar producto');
     }
+
+    async uploadExcelfile(data) {
+      const response = await fetch(`${API_BASE_URL}/productos/cargar/xlsx/`, {
+        method: 'POST',
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        },
+        body: data,
+      });
+      if (!response.ok) throw new Error('Error al cargar el excel de productos');
+      return await response.json();
+
+    }
+
+
   }
 
   window.sectionServices = window.sectionServices || {};

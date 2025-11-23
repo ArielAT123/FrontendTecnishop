@@ -233,7 +233,7 @@
       const modalHTML = `
         <div class="modal-overlay">
           <div class="modal-content">
-            <h3>Detalles de la Orden #${orden.id}</h3>
+            <h3>${orden.numero_orden}</h3>
             <div class="detalles-orden">
               <p><strong>Fecha:</strong> ${this.formatearFecha(orden.fecha)}</p>
               <p><strong>Realiza:</strong> ${orden.realiza_orden}</p>

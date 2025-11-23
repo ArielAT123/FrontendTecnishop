@@ -47,7 +47,7 @@
         console.log('ClientesService inicializado correctamente');
       } catch (error) {
         console.error('Error al inicializar clientes:', error);
-        showNotification('Error al inicializar la sección de clientes', 'error');
+        //showNotification('Error al inicializar la sección de clientes', 'error');
       }
     }
 
@@ -228,14 +228,14 @@
         };
 
         if (!formData.ci || !formData.nombre) {
-          showNotification('Por favor complete los campos obligatorios', 'error');
+          //showNotification('Por favor complete los campos obligatorios', 'error');
           return;
         }
 
         try {
           console.log('Enviando cliente:', formData);
           await createCliente(formData); // From api.js
-          showNotification('Cliente guardado exitosamente', 'success');
+          //showNotification('Cliente guardado exitosamente', 'success');
           form.reset();
 
           // Ocultar formulario después de guardar
@@ -249,7 +249,7 @@
           await this.cargarClientes();
         } catch (error) {
           console.error('Error al guardar cliente:', error);
-          showNotification('Error al guardar cliente: ' + error.message, 'error');
+          //showNotification('Error al guardar cliente: ' + error.message, 'error');
         }
       };
 
@@ -273,7 +273,7 @@
     // ========================================
     editarCliente(id) {
       console.log('Editar cliente con ID:', id);
-      showNotification('Función de editar en desarrollo', 'info');
+      //showNotification('Función de editar en desarrollo', 'info');
     }
 
     async eliminarCliente(id) {
@@ -281,11 +281,11 @@
         try {
           console.log('Eliminar cliente con ID:', id);
           await this.deleteCliente(id);
-          showNotification('Cliente eliminado exitosamente', 'success');
+          //showNotification('Cliente eliminado exitosamente', 'success');
           await this.cargarClientes();
         } catch (error) {
           console.error('Error al eliminar cliente:', error);
-          showNotification('Error al eliminar cliente: ' + error.message, 'error');
+          //showNotification('Error al eliminar cliente: ' + error.message, 'error');
         }
       }
     }
@@ -294,6 +294,10 @@
       try {
         const response = await fetch(`${API_BASE_URL}/clientes/${id}/`, {
           method: 'DELETE',
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
         });
 
         if (!response.ok) {
@@ -310,4 +314,4 @@
   window.sectionServices = window.sectionServices || {};
   window.sectionServices.clientes = new ClientesService();
 
-})();``
+})(); ``

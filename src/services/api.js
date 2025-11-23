@@ -14,7 +14,8 @@ async function apiRequest(endpoint, options = {}) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
       },
       ...options,
     });
@@ -49,7 +50,7 @@ async function getClientes() {
   try {
     return await apiRequest('/clientes/');
   } catch (error) {
-    showNotification('Error al cargar clientes: ' + error.message, 'error');
+    // //showNotification('Error al cargar clientes: ' + error.message, 'error');
     return [];
   }
 }
@@ -58,6 +59,11 @@ async function createCliente(clienteData) {
   return await apiRequest('/clientes/crear/', {
     method: 'POST',
     body: JSON.stringify(clienteData),
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+    },
+
   });
 }
 
@@ -66,19 +72,20 @@ async function getEquipos() {
     const data = await apiRequest('/equipos/');
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    showNotification('Error al cargar equipos: ' + error.message, 'error');
+    // //showNotification('Error al cargar equipos: ' + error.message, 'error');
     return [];
   }
 }
 
+
 async function getOrdenes(limit = 10) {
   try {
     const data = await apiRequest(`/ordenes/0/${limit}`);
-    return data.ordenes && Array.isArray(data.ordenes) 
-      ? data.ordenes 
+    return data.ordenes && Array.isArray(data.ordenes)
+      ? data.ordenes
       : Array.isArray(data) ? data : [];
   } catch (error) {
-    showNotification('Error al cargar órdenes: ' + error.message, 'error');
+    // //showNotification('Error al cargar órdenes: ' + error.message, 'error');
     return [];
   }
 }
@@ -87,9 +94,22 @@ async function getDetalleOrden(ordenId) {
   try {
     return await apiRequest(`/ordenes/${ordenId}/`);
   } catch (error) {
-    showNotification('Error al cargar detalle de orden: ' + error.message, 'error');
+    // //showNotification('Error al cargar detalle de orden: ' + error.message, 'error');
     throw error;
   }
+}
+
+async function updateDataUser(){
+  const userNameDiv = document.getElementById("user-name");
+  const userAvatarDiv = document.querySelector(".user-avatar");
+  const initials = (localStorage.getItem("username") || "U U").split(" ").map(n => n.charAt(0).toUpperCase()).join("");
+  if(userAvatarDiv){
+    userAvatarDiv.textContent = initials || "UU";
+  }
+  if(userNameDiv){
+    userNameDiv.textContent = localStorage.getItem("username") || "Usuario";
+
+}
 }
 
 // ========================================
@@ -106,20 +126,20 @@ async function loadSectionScript(section) {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = `src/services/${section}.js`;
-    
+
     script.onload = () => {
       console.log(`${section}.js cargado correctamente`);
       loadedScripts.add(section);
       initializeSection(section);
       resolve();
     };
-    
+
     script.onerror = () => {
       const error = `Error al cargar ${section}.js`;
       console.error(error);
       reject(new Error(error));
     };
-    
+
     document.body.appendChild(script);
   });
 }
@@ -187,14 +207,43 @@ function setCurrentDate() {
 // ========================================
 // INICIALIZACIÓN
 // ========================================
+// 📍 index.js (renderer process)
+const { ipcRenderer } = require('electron');
+
+function verificarSesion() {
+  const horaExpiracion = localStorage.getItem("horaExpiracion");
+
+  if (horaExpiracion) {
+    const ahora = Date.now();
+
+    if (ahora >= parseInt(horaExpiracion)) {
+      alert("⚠️ Han pasado 5 horas desde tu inicio de sesión. Tu sesión expirará.");
+      localStorage.clear(); // limpia los datos
+      ipcRenderer.send('logout'); // vuelve a la pantalla de login
+    }
+  }
+}
+
+// Verificar al abrir la ventana
+// Verificar cada minuto también
+setInterval(verificarSesion, 60 * 1000);
+
+window.addEventListener("load", verificarSesion);
+
+// Verificar cada vez que el usuario vuelve a la app o cambia de pestaña
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    verificarSesion();
+  }
+});
 
 
 document.addEventListener('DOMContentLoaded', async function () {
   console.log('Inicializando aplicación...');
   initializeNavigation();
-  
+  await updateDataUser();
   await loadContent('dashboard');
   await loadSectionScript('dashboard');
-  
+
   console.log('Aplicación inicializada correctamente');
 });

@@ -39,11 +39,11 @@
         if (orden) {
           this.mostrarModalReporte(orden);
         } else {
-          showNotification('No se pudo cargar la información de la orden', 'error');
+          //showNotification('No se pudo cargar la información de la orden', 'error');
         }
       } catch (error) {
         console.error('Error al ver orden:', error);
-        showNotification('Error al cargar la orden', 'error');
+        //showNotification('Error al cargar la orden', 'error');
       }
     }
 
@@ -56,7 +56,10 @@
 
         const response = await fetch(`${API_BASE_URL}/ordenes/${ordenId}/`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
         });
 
         if (!response.ok) {
@@ -129,7 +132,10 @@
         const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
         const response = await fetch(`${API_BASE_URL}/clientes/${clienteCi}/`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
         });
 
         if (response.ok) {
@@ -212,7 +218,10 @@
         // Obtener las últimas 10 órdenes
         const response = await fetch(`${API_BASE_URL}/ordenes/0/10`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
         });
 
         if (!response.ok) {
@@ -231,6 +240,7 @@
           const equipo = orden.equipo || {};
           const observaciones = equipo.observaciones?.[0] || {};
           const problemas = equipo.problemas || [];
+
 
           // Intentar obtener el nombre del cliente
           let clienteNombre = `Cliente ${equipo.cliente_ci}`;
@@ -267,9 +277,11 @@
               otros: observaciones.otros || ''
             }
           };
-        }));
+        } ));
 
-        console.log('Órdenes transformadas:', ordenesTransformadas);
+        localStorage.setItem("Ordenes",JSON.stringify(ordenesTransformadas));
+        console.log("ORDENES TRNASFORMADAS", localStorage.getItem("Ordenes"));
+        //console.log('Órdenes transformadas:', ordenesTransformadas);
         this.renderOrdenesRecientes(ordenesTransformadas);
 
       } catch (error) {
@@ -364,7 +376,6 @@
         return dateString;
       }
     }
-
     // ========================================
     // VER ORDEN - MOSTRAR MODAL DE REPORTE
     // ========================================
@@ -401,11 +412,11 @@
               <h3>Orden de Servicio</h3>
               <div class="reporte-modal-actions">
                 <button id="imprimir-reporte-btn" class="btn btn-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="12" stroke="currentColor" class="size-6">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="18" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
                   </svg> Imprimir</button>
                 <button id="cerrar-reporte-btn" class="btn btn-secondary">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width=12 stroke="currentColor" class="size-6">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width=18 stroke="currentColor" class="size-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
               Cerrar</button>
@@ -665,7 +676,7 @@
         console.log('OrdenesService inicializado correctamente');
       } catch (error) {
         console.error('Error al inicializar órdenes:', error);
-        showNotification('Error al inicializar la sección de órdenes', 'error');
+        //showNotification('Error al inicializar la sección de órdenes', 'error');
       }
     }
 
@@ -910,7 +921,7 @@
         // Validaciones
         const validationErrors = this.validateForm(formData);
         if (validationErrors.length > 0) {
-          showNotification(validationErrors[0], 'error');
+          //showNotification(validationErrors[0], 'error');
           return;
         }
 
@@ -925,7 +936,7 @@
           // Ocultar modal de carga
           this.hideLoadingModal();
 
-          showNotification('Orden creada exitosamente', 'success');
+          //showNotification('Orden creada exitosamente', 'success');
           form.reset();
           this.setCurrentDate();
 
@@ -945,7 +956,7 @@
         } catch (error) {
           console.error('Error al crear orden:', error);
           this.hideLoadingModal();
-          showNotification('Error al crear orden: ' + error.message, 'error');
+          //showNotification('Error al crear orden: ' + error.message, 'error');
         }
       };
 
@@ -1076,7 +1087,10 @@
           console.log('Creando cliente:', datosCliente);
           const response = await fetch(`${API_BASE_URL}/clientes/crear/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+            },
             body: JSON.stringify(datosCliente)
           });
 
@@ -1098,8 +1112,10 @@
         console.log('Creando equipo:', datosEquipo);
         const equipoResponse = await fetch(`${API_BASE_URL}/equipos/crear/`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datosEquipo)
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          }, body: JSON.stringify(datosEquipo)
         });
 
         if (!equipoResponse.ok) {
@@ -1123,8 +1139,10 @@
         console.log('Creando observaciones:', datosObservaciones);
         await fetch(`${API_BASE_URL}/observaciones/crear/`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datosObservaciones)
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          }, body: JSON.stringify(datosObservaciones)
         });
 
         // 4. Crear problemas (80%)
@@ -1139,7 +1157,10 @@
           console.log(`Creando problema ${i + 1}:`, datosProblema);
           await fetch(`${API_BASE_URL}/problemas/crear/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+            },
             body: JSON.stringify(datosProblema)
           });
 
@@ -1159,8 +1180,11 @@
         console.log('Creando orden:', datosOrden);
         const ordenResponse = await fetch(`${API_BASE_URL}/ordenes/crear/`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datosOrden)
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
+           body: JSON.stringify(datosOrden)
         });
 
         if (!ordenResponse.ok) {

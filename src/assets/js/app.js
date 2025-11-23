@@ -20,11 +20,11 @@ class App {
       await this.navigationManager.showScreen('clientes');
       
       console.log('Aplicación inicializada correctamente');
-      //showNotification('Sistema cargado correctamente', 'success');
+      ////showNotification('Sistema cargado correctamente', 'success');
       
     } catch (error) {
       console.error('Error al inicializar la aplicación:', error);
-      //showNotification('Error al cargar el sistema', 'error');
+      ////showNotification('Error al cargar el sistema', 'error');
     }
   }
 
@@ -32,12 +32,12 @@ class App {
   setupErrorHandling() {
     window.addEventListener('error', (event) => {
       console.error('Error global:', event.error);
-      //showNotification('Ha ocurrido un error inesperado', 'error');
+      ////showNotification('Ha ocurrido un error inesperado', 'error');
     });
 
     window.addEventListener('unhandledrejection', (event) => {
       console.error('Promise rechazada:', event.reason);
-      //showNotification('Error en operación asíncrona', 'error');
+      ////showNotification('Error en operación asíncrona', 'error');
     });
   }
 }

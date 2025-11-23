@@ -62,7 +62,7 @@ class NavigationManager {
       }
     } catch (error) {
       console.error(`Error al cambiar a screen ${screenName}:`, error);
-      showNotification && showNotification(`Error al cargar ${screenName}`, 'error');
+      // //showNotification && //showNotification(`Error al cargar ${screenName}`, 'error');
     }
   }
 

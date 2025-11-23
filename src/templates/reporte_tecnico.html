@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reporte Técnico — Orden de Trabajo</title>
+  <style>
+    /* Reset y configuración base */
+    * {
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f9fc;
+      color: #1f2937;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    .container {
+      flex: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    header {
+      text-align: center;
+      border-bottom: 2px solid #1f6feb;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+    
+    header h1 {
+      margin: 0;
+      color: #1f6feb;
+      font-size: clamp(1.5rem, 4vw, 2.2rem);
+    }
+    
+    header p {
+      color: #555;
+      margin: 5px 0;
+    }
+    
+    section {
+      margin-bottom: 25px;
+      flex-shrink: 0;
+    }
+    
+    h2 {
+      color: #1f6feb;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 5px;
+      font-size: clamp(1.2rem, 3vw, 1.5rem);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      table-layout: fixed;
+    }
+    
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: left;
+      word-wrap: break-word;
+    }
+    
+    th {
+      background: #f0f4ff;
+    }
+    
+    tfoot td {
+      font-weight: bold;
+      background: #f9fafb;
+    }
+    
+    .info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .info div {
+      background: #f9fafb;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: auto;
+      font-size: 13px;
+      color: #777;
+      border-top: 1px dashed #ccc;
+      padding-top: 10px;
+      flex-shrink: 0;
+    }
+    
+    /* Responsive para pantallas pequeñas */
+    @media (max-width: 600px) {
+      .container {
+        padding: 15px;
+        margin: 0;
+        border-radius: 0;
+      }
+      
+      th, td {
+        padding: 6px;
+        font-size: 0.9rem;
+      }
+      
+      .info {
+        grid-template-columns: 1fr;
+      }
+      
+      table {
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Reporte Técnico</h1>
+      <p>Orden de Trabajo Nº <strong>0001</strong></p>
+      <p>Fecha: <time datetime="2025-10-18">18 de octubre de 2025</time></p>
+    </header>
+
+    <section id="datos-generales">
+      <h2>Datos Generales</h2>
+      <div class="info">
+        <div><strong>Cliente:</strong> Juan Pérez</div>
+        <div><strong>Técnico:</strong> Carlos García</div>
+        <div><strong>Equipo:</strong> Generador Eléctrico 10kW</div>
+        <div><strong>Ubicación:</strong> Planta Norte</div>
+      </div>
+    </section>
+
+    <section id="trabajos-realizados">
+      <h2>Trabajos Realizados</h2>
+      <table>
+        <thead>
+          <tr><th>Descripción</th><th>Horas</th><th>Precio Unitario</th><th>Subtotal</th></tr>
+        </thead>
+        <tbody>
+          <!-- aqui van los datos de los trabajos realizados -->
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total Trabajos</td>
+            <td id="precio-total-trabajo-realizado"></td></tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section id="repuestos-utilizados">
+      <h2>Repuestos Utilizados</h2>
+      <table>
+        <thead>
+          <tr><th>Nombre del Repuesto</th><th>Cantidad</th><th>Precio Unitario</th><th>Subtotal</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Filtro de aire</td><td>1</td><td>$15.00</td><td>$15.00</td></tr>
+          <tr><td>Aceite sintético 1L</td><td>2</td><td>$10.00</td><td>$20.00</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total Repuestos</td><td>$35.00</td></tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section id="resumen-final">
+      <h2>Resumen Final</h2>
+      <table>
+        <tbody>
+          <tr><td><strong>Total Trabajos</strong></td><td id="total-trabajos"></td></tr>
+          <tr><td><strong>Total Repuestos</strong></td><td id="total-repuestos"></td></tr>
+          <tr><td><strong>Total General</strong></td><td><strong id="total-general"></strong></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="observaciones">
+      <h2>Observaciones</h2>
+      <p>El generador queda operativo y calibrado según las especificaciones del fabricante. Próximo mantenimiento recomendado en 6 meses.</p>
+    </section>
+
+    <footer>
+      <p>Reporte técnico generado automáticamente por el sistema de órdenes de trabajo.</p>
+    </footer>
+  </div>
+</body>
+</html>

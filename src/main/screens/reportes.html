@@ -1,6 +1,353 @@
 <div id="reportes" class="content-area">
-  <div class="card">
-    <h3>Reportes y Estadísticas</h3>
-    <p>Contenido de reportes y estadísticas se cargará aquí.</p>
+  <style>
+    #reporte-content {
+      display: flex;
+      flex: auto;
+      padding: 0px;
+      font-family: Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+    }
+
+    .container {
+      border-radius: 15px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      opacity: 0.9;
+      font-size: 1.1rem;
+    }
+
+    #form-container-reporte {
+      visibility: hidden;
+      display: none;
+      padding: 30px;
+    }
+
+    .form-section {
+      margin-bottom: 30px;
+      padding: 25px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .section-title {
+      font-size: 1.4rem;
+      color: #2d3748;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #1f6feb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .add-btn {
+      background: #1f6feb;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.3s;
+    }
+
+    .add-btn:hover {
+      background: #1a5fd8;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #4a5568;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #1f6feb;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .item-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 15px;
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .remove-btn {
+      background: #e53e3e;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .remove-btn:hover {
+      background: #c53030;
+      transform: scale(1.05);
+    }
+
+    .totals-section {
+      background: #1f6feb;
+      color: white;
+      padding: 25px;
+      border-radius: 10px;
+      margin-top: 30px;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+    }
+
+    .grand-total {
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-top: 2px solid white;
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+
+    .submit-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+      color: white;
+      border: none;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.3s;
+      margin-top: 20px;
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+    }
+
+    .form-footer {
+      text-align: center;
+      margin-top: 20px;
+      color: #718096;
+    }
+
+    .empty-container {
+      text-align: center;
+      padding: 30px;
+      color: #718096;
+      font-style: italic;
+      background: white;
+      border-radius: 8px;
+      border: 2px dashed #e2e8f0;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #1f6feb 0%, #1a5fd8 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 6px rgba(31, 111, 235, 0.2);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(31, 111, 235, 0.3);
+    }
+
+    @media (max-width: 768px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .item-row {
+        grid-template-columns: 1fr;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+      }
+    }
+  </style>
+  <div>
+    <div class="card">
+      <button id="reporte-button-create" class="btn-primary">
+         Crear Reporte Técnico
+      </button>
+      <div id="form-container-reporte">
+        <form id="reporteForm">
+          <!-- Datos Generales -->
+          <div class="form-section">
+            <h2 class="section-title"> Datos Generales</h2>
+            <div class="row">
+              <div class="form-group">
+                <label for="orden_id">Seleccionar Orden *</label>
+                <select id="orden_id" name="orden_id" required>
+                  <option value="">Seleccione una orden...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="tecnico">Técnico Responsable *</label>
+                <input type="text" id="tecnico" name="tecnico" required placeholder="Nombre del técnico" readonly>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="equipo">Equipo/Dispositivo *</label>
+              <input type="text" id="equipo" name="equipo" required placeholder="Descripción del equipo" readonly>
+            </div>
+          </div>
+
+          <!-- Trabajos Realizados -->
+          <div class="form-section">
+            <h2 class="section-title">
+              🔧 Trabajos Realizados
+              <button type="button" class="add-btn" onclick="agregarTrabajo()">+ Agregar Trabajo</button>
+            </h2>
+            <div id="trabajos-container">
+              <div class="empty-container">
+                No hay trabajos agregados. Haga clic en "+ Agregar Trabajo" para comenzar.
+              </div>
+            </div>
+          </div>
+
+          <!-- Repuestos Utilizados -->
+          <div class="form-section">
+            <h2 class="section-title">
+              🛠️ Repuestos Utilizados
+              <button type="button" class="add-btn" onclick="agregarRepuesto()">+ Agregar Repuesto</button>
+            </h2>
+            <div id="repuestos-container">
+              <div class="empty-container">
+                No hay repuestos agregados. Haga clic en "+ Agregar Repuesto" para comenzar.
+              </div>
+            </div>
+          </div>
+
+          <!-- Observaciones -->
+          <div class="form-section">
+            <h2 class="section-title"> Observaciones</h2>
+            <div class="form-group">
+              <label for="observaciones">Notas y Recomendaciones</label>
+              <textarea id="observaciones" name="observaciones" rows="6"
+                placeholder="Las observaciones se cargarán automáticamente al seleccionar una orden..."></textarea>
+            </div>
+          </div>
+
+          <!-- Totales -->
+          <div class="totals-section">
+            <div class="total-row">
+              <span> Total Trabajos:</span>
+              <span id="total-trabajos">$0.00</span>
+            </div>
+            <div class="total-row">
+              <span> Total Repuestos:</span>
+              <span id="total-repuestos">$0.00</span>
+            </div>
+            <div class="total-row grand-total">
+              <span> TOTAL GENERAL:</span>
+              <span id="total-general">$0.00</span>
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn">
+             Generar Reporte
+          </button>
+
+          <div class="form-footer">
+            <p>El reporte será guardado en el sistema y asociado a la orden correspondiente.</p>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+  // Script para remover el empty-container cuando se agregan items
+  function removeEmptyState(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const emptyContainer = container.querySelector('.empty-container');
+    if (emptyContainer && container.children.length > 1) {
+      emptyContainer.remove();
+    }
+  }
+  // Observar cambios en los contenedores
+  
+</script>

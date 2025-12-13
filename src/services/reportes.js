@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   // ========================================
   // REPORTES SERVICE
   // ========================================
@@ -8,6 +8,7 @@
       this.isInitialized = false;
       this.trabajosRealizados = [];
       this.repuestosUtilizados = [];
+      this.reportesOriginales = []; // Para almacenar reportes sin filtrar
     }
 
     // ========================================
@@ -26,6 +27,7 @@
 
         this.cargarOrdenesDesdeStorage();
         this.setupEventListeners();
+        await this.mostrarReportes();
         this.isInitialized = true;
         console.log('ReportesService inicializado correctamente');
       } catch (error) {
@@ -116,7 +118,7 @@
           observer.observe(trabajosContainer, { childList: true });
           observer.observe(repuestosContainer, { childList: true });
         }
-      }); 
+      });
       // Listener para cuando se selecciona una orden
       const selectOrden = document.getElementById('orden_id');
       if (selectOrden) {
@@ -410,11 +412,14 @@
 
       // Limpiar formulario y ocultar
       this.limpiarFormulario();
+
       const formContainer = document.getElementById("form-container-reporte");
       if (formContainer) {
         formContainer.style.visibility = "hidden";
         formContainer.style.display = "none";
       }
+      this.mostrarReportes();
+
     }
 
     // ========================================
@@ -505,6 +510,801 @@
         console.error('Error al cargar órdenes recientes:', error);
       }
     }
+    //MOSTRAR REPORTES EN PANTALLA 
+
+    async mostrarReportes() {
+      try {
+        // 1) Llamar al endpoint
+        let response = await fetch(API_BASE_URL + "/reportes/", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
+          },
+        });
+
+        let data = await response.json();
+        let reportes = Array.isArray(data.data) ? data.data : [];
+
+        // 2) Guardar reportes en localStorage para acceso posterior
+        localStorage.setItem('ReportesData', JSON.stringify(reportes));
+        this.reportesOriginales = reportes; // Guardar referencia para filtrado
+        console.log('Reportes guardados en localStorage:', reportes.length);
+
+        // Renderizar reportes
+        this.renderizarTablaReportes(reportes);
+
+      } catch (error) {
+        console.error("Error al mostrar reportes:", error);
+      }
+    }
+
+    // ========================================
+    // RENDERIZAR TABLA DE REPORTES
+    // ========================================
+    renderizarTablaReportes(reportes) {
+
+      const lista = document.getElementById("reportes-containers");
+      lista.innerHTML = "";
+
+      if (reportes.length === 0) {
+        lista.innerHTML = `
+            <div class="empty-container">
+              No hay reportes registrados actualmente.
+            </div>
+          `;
+        return;
+      }
+
+      // --- FUNCIONES AUXILIARES ---
+      const formatCurrency = (v) => {
+        const num = typeof v === "string" ? parseFloat(v) : (v || 0);
+        return `$${isNaN(num) ? "0.00" : num.toFixed(2)}`;
+      };
+
+      const formatDate = (fechaStr) => {
+        if (!fechaStr) return "Sin fecha";
+        return new Date(fechaStr).toLocaleDateString('es-EC', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      };
+
+      // 3) Crear tabla de reportes
+      const tableHTML = `
+          <table class="reportes-table">
+            <thead>
+              <tr>
+                <th>Código Orden</th>
+                <th>Cliente</th>
+                <th>Máquina</th>
+                <th>Fecha</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reportes.map(rep => {
+        const orden = rep.orden || {};
+        const equipo = orden.equipo || {};
+        const cliente = equipo.cliente || {};
+
+        // Extraer datos
+        const codigoOrden = orden.numero_orden || `ORD-${rep.orden_id}`;
+        const nombreCliente = cliente.nombre && cliente.apellido
+          ? `${cliente.nombre} ${cliente.apellido}`
+          : (cliente.nombre || 'N/A');
+        const maquina = equipo.nombre && equipo.marca
+          ? `${equipo.nombre} - ${equipo.marca}`
+          : (equipo.nombre || 'N/A');
+        const fecha = formatDate(rep.fecha_creacion || orden.fecha);
+        const total = formatCurrency(rep.total_general);
+
+        return `
+                  <tr onclick="abrirModalReporte('${rep.id}')" title="Click para ver detalles">
+                    <td><span class="reporte-badge">${codigoOrden}</span></td>
+                    <td>${nombreCliente}</td>
+                    <td>${maquina}</td>
+                    <td>${fecha}</td>
+                    <td class="reporte-total">${total}</td>
+                  </tr>
+                `;
+      }).join('')}
+            </tbody>
+          </table>
+        `;
+
+      lista.innerHTML = tableHTML;
+    }
+
+    // ========================================
+    // FILTRAR REPORTES
+    // ========================================
+    filtrarReportes() {
+      const filtroCliente = document.getElementById('filtro-cliente')?.value.toLowerCase().trim() || '';
+      const filtroOrden = document.getElementById('filtro-orden')?.value.toLowerCase().trim() || '';
+      const filtroDesde = document.getElementById('filtro-fecha-desde')?.value || '';
+      const filtroHasta = document.getElementById('filtro-fecha-hasta')?.value || '';
+
+      // Si no hay reportes originales, cargarlos desde localStorage
+      if (!this.reportesOriginales || this.reportesOriginales.length === 0) {
+        const reportesStr = localStorage.getItem('ReportesData');
+        this.reportesOriginales = reportesStr ? JSON.parse(reportesStr) : [];
+      }
+
+      let reportesFiltrados = this.reportesOriginales.filter(rep => {
+        const orden = rep.orden || {};
+        const equipo = orden.equipo || {};
+        const cliente = equipo.cliente || {};
+
+        // Filtro por cliente
+        const nombreCliente = `${cliente.nombre || ''} ${cliente.apellido || ''}`.toLowerCase();
+        if (filtroCliente && !nombreCliente.includes(filtroCliente)) {
+          return false;
+        }
+
+        // Filtro por codigo de orden
+        const codigoOrden = (orden.numero_orden || '').toLowerCase();
+        if (filtroOrden && !codigoOrden.includes(filtroOrden)) {
+          return false;
+        }
+
+        // Filtro por fecha
+        const fechaReporte = rep.fecha_creacion || orden.fecha || '';
+        if (fechaReporte) {
+          const fechaReporteDate = new Date(fechaReporte).toISOString().split('T')[0];
+
+          if (filtroDesde && fechaReporteDate < filtroDesde) {
+            return false;
+          }
+
+          if (filtroHasta && fechaReporteDate > filtroHasta) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      // Renderizar los reportes filtrados
+      this.renderizarTablaReportes(reportesFiltrados);
+    }
+
+    // ========================================
+    // LIMPIAR FILTROS
+    // ========================================
+    limpiarFiltros() {
+      // Limpiar los inputs
+      const filtroCliente = document.getElementById('filtro-cliente');
+      const filtroOrden = document.getElementById('filtro-orden');
+      const filtroDesde = document.getElementById('filtro-fecha-desde');
+      const filtroHasta = document.getElementById('filtro-fecha-hasta');
+
+      if (filtroCliente) filtroCliente.value = '';
+      if (filtroOrden) filtroOrden.value = '';
+      if (filtroDesde) filtroDesde.value = '';
+      if (filtroHasta) filtroHasta.value = '';
+
+      // Mostrar todos los reportes
+      this.renderizarTablaReportes(this.reportesOriginales);
+    }
+
+    // ========================================
+    // OBTENER REPORTE DESDE LOCALSTORAGE POR ID
+    // ========================================
+    obtenerReportePorId(id) {
+      try {
+        const reportesStr = localStorage.getItem('ReportesData');
+        if (!reportesStr) return null;
+
+        const reportes = JSON.parse(reportesStr);
+        return reportes.find(r => String(r.id) === String(id)) || null;
+      } catch (error) {
+        console.error('Error al obtener reporte:', error);
+        return null;
+      }
+    }
+
+    // ========================================
+    // ABRIR MODAL CON DETALLES DEL REPORTE
+    // ========================================
+    abrirModalReporte(reporteId) {
+      const reporte = this.obtenerReportePorId(reporteId);
+      if (!reporte) {
+        alert('No se pudo encontrar el reporte');
+        return;
+      }
+
+      // Guardar ID del reporte seleccionado para la descarga
+      window.reporteSeleccionadoId = reporteId;
+
+      const orden = reporte.orden || {};
+      const equipo = orden.equipo || {};
+      const cliente = equipo.cliente || {};
+      const problemas = equipo.problemas || [];
+      const observacionesEquipo = equipo.observaciones_equipo?.[0] || {};
+      const trabajos = reporte.trabajos_realizados || [];
+      const repuestos = reporte.repuestos_utilizados || [];
+
+      const formatCurrency = (v) => {
+        const num = typeof v === "string" ? parseFloat(v) : (v || 0);
+        return `$${isNaN(num) ? "0.00" : num.toFixed(2)}`;
+      };
+
+      const formatDate = (fechaStr) => {
+        if (!fechaStr) return "Sin fecha";
+        return new Date(fechaStr).toLocaleString('es-EC');
+      };
+
+      // Construir contenido del modal
+      const modalBody = document.getElementById('modal-body-content');
+      const modalTitle = document.getElementById('modal-title');
+
+      modalTitle.textContent = `Reporte #${reporte.id} - ${orden.numero_orden || 'N/A'}`;
+
+      modalBody.innerHTML = `
+        <!-- Información de la Orden -->
+        <div class="detail-section">
+          <h3>Informacion de la Orden</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Número de Orden</span>
+              <span class="detail-value">${orden.numero_orden || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Fecha de Orden</span>
+              <span class="detail-value">${orden.fecha || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Estado</span>
+              <span class="detail-value">${orden.estado || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Técnico</span>
+              <span class="detail-value">${orden.realiza_orden || reporte.persona_a_cargo || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Información del Cliente -->
+        <div class="detail-section">
+          <h3>Datos del Cliente</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Nombre Completo</span>
+              <span class="detail-value">${cliente.nombre || ''} ${cliente.apellido || ''}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">CI/RUC</span>
+              <span class="detail-value">${cliente.ci || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Teléfono</span>
+              <span class="detail-value">${cliente.telefono || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Correo</span>
+              <span class="detail-value">${cliente.correo || 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Información del Equipo -->
+        <div class="detail-section">
+          <h3>Datos del Equipo</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Nombre</span>
+              <span class="detail-value">${equipo.nombre || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Marca</span>
+              <span class="detail-value">${equipo.marca || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Modelo</span>
+              <span class="detail-value">${equipo.modelo || 'N/A'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Número de Serie</span>
+              <span class="detail-value">${equipo.numero_serie || 'N/A'}</span>
+            </div>
+          </div>
+
+          <h4 style="margin-top: 15px; color: #c53030;">Problemas Reportados:</h4>
+          ${problemas.length > 0 ? `
+            <ul class="problems-list">
+              ${problemas.map(p => `<li>${p.problema}</li>`).join('')}
+            </ul>
+          ` : '<p style="color: #718096; font-style: italic;">Sin problemas registrados</p>'}
+
+          <h4 style="margin-top: 15px; color: #4a5568;">Accesorios Recibidos:</h4>
+          <div class="accessories-grid">
+            <span class="accessory-badge ${observacionesEquipo.cargador ? 'yes' : 'no'}">
+              ${observacionesEquipo.cargador ? 'SI' : 'NO'} Cargador
+            </span>
+            <span class="accessory-badge ${observacionesEquipo.bateria ? 'yes' : 'no'}">
+              ${observacionesEquipo.bateria ? 'SI' : 'NO'} Bateria
+            </span>
+            <span class="accessory-badge ${observacionesEquipo.cable_poder ? 'yes' : 'no'}">
+              ${observacionesEquipo.cable_poder ? 'SI' : 'NO'} Cable Poder
+            </span>
+            <span class="accessory-badge ${observacionesEquipo.cable_datos ? 'yes' : 'no'}">
+              ${observacionesEquipo.cable_datos ? 'SI' : 'NO'} Cable Datos
+            </span>
+          </div>
+          ${observacionesEquipo.otros ? `
+            <p style="margin-top: 10px; color: #4a5568;"><strong>Otros:</strong> ${observacionesEquipo.otros}</p>
+          ` : ''}
+        </div>
+
+        <!-- Trabajos Realizados -->
+        <div class="detail-section">
+          <h3>Trabajos Realizados (${trabajos.length})</h3>
+          ${trabajos.length > 0 ? `
+            <table class="detail-table">
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th style="text-align: right;">Costo</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${trabajos.map(t => `
+                  <tr>
+                    <td>${t.descripcion || 'N/A'}</td>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(t.costo)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color: #718096; font-style: italic;">Sin trabajos registrados</p>'}
+        </div>
+
+        <!-- Repuestos Utilizados -->
+        <div class="detail-section">
+          <h3>Repuestos Utilizados (${repuestos.length})</h3>
+          ${repuestos.length > 0 ? `
+            <table class="detail-table">
+              <thead>
+                <tr>
+                  <th>Repuesto</th>
+                  <th style="text-align: center;">Cantidad</th>
+                  <th style="text-align: right;">P. Unitario</th>
+                  <th style="text-align: right;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${repuestos.map(r => `
+                  <tr>
+                    <td>${r.nombre_repuesto || r.nombre || 'N/A'}</td>
+                    <td style="text-align: center;">${r.cantidad || 1}</td>
+                    <td style="text-align: right;">${formatCurrency(r.precio_unitario || r.precio)}</td>
+                    <td style="text-align: right; font-weight: 600;">${formatCurrency(r.subtotal)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color: #718096; font-style: italic;">Sin repuestos registrados</p>'}
+        </div>
+
+        <!-- Observaciones del Reporte -->
+        ${reporte.observaciones ? `
+          <div class="detail-section">
+            <h3>Observaciones del Reporte</h3>
+            <div class="observaciones-box">
+              ${reporte.observaciones}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Totales -->
+        <div class="totals-summary">
+          <div class="total-row">
+            <span>Total Trabajos:</span>
+            <span>${formatCurrency(reporte.total_trabajos)}</span>
+          </div>
+          <div class="total-row">
+            <span>Total Repuestos:</span>
+            <span>${formatCurrency(reporte.total_repuestos)}</span>
+          </div>
+          <div class="total-row grand-total">
+            <span>TOTAL GENERAL:</span>
+            <span>${formatCurrency(reporte.total_general)}</span>
+          </div>
+        </div>
+
+        <p style="text-align: center; margin-top: 20px; color: #718096; font-size: 0.85rem;">
+          Fecha de creación del reporte: ${formatDate(reporte.fecha_creacion)}
+        </p>
+      `;
+
+      // Mostrar modal
+      const modal = document.getElementById('reporte-detail-modal');
+      modal.classList.add('active');
+    }
+
+    // ========================================
+    // CERRAR MODAL
+    // ========================================
+    cerrarModalReporte() {
+      const modal = document.getElementById('reporte-detail-modal');
+      modal.classList.remove('active');
+    }
+
+    // ========================================
+    // GENERAR CONTENIDO HTML DEL REPORTE
+    // ========================================
+    generarContenidoReporte() {
+      const reporteId = window.reporteSeleccionadoId;
+      const reporte = this.obtenerReportePorId(reporteId);
+
+      if (!reporte) {
+        alert('No se pudo encontrar el reporte');
+        return null;
+      }
+
+      const orden = reporte.orden || {};
+      const equipo = orden.equipo || {};
+      const cliente = equipo.cliente || {};
+      const problemas = equipo.problemas || [];
+      const observacionesEquipo = equipo.observaciones_equipo?.[0] || {};
+      const trabajos = reporte.trabajos_realizados || [];
+      const repuestos = reporte.repuestos_utilizados || [];
+
+      const formatCurrency = (v) => {
+        const num = typeof v === "string" ? parseFloat(v) : (v || 0);
+        return `$${isNaN(num) ? "0.00" : num.toFixed(2)}`;
+      };
+
+      return { reporte, orden, equipo, cliente, problemas, observacionesEquipo, trabajos, repuestos, formatCurrency };
+    }
+
+    // ========================================
+    // DESCARGAR PDF DIRECTAMENTE
+    // ========================================
+    descargarPDF() {
+      const data = this.generarContenidoReporte();
+      if (!data) return;
+
+      const { reporte, orden, equipo, cliente, problemas, observacionesEquipo, trabajos, repuestos, formatCurrency } = data;
+
+      // Crear el contenido del reporte
+      const reporteHTML = this.crearHTMLReporte(data);
+
+      // Crear un elemento temporal para el PDF
+      const container = document.createElement('div');
+      container.innerHTML = reporteHTML;
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '210mm';
+      document.body.appendChild(container);
+
+      const nombreArchivo = `Reporte_${orden.numero_orden || reporte.id}.pdf`;
+
+      // Verificar si html2pdf esta disponible
+      if (typeof html2pdf !== 'undefined') {
+        const opciones = {
+          margin: 10,
+          filename: nombreArchivo,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf()
+          .set(opciones)
+          .from(container)
+          .save()
+          .then(() => {
+            document.body.removeChild(container);
+            console.log('PDF descargado exitosamente:', nombreArchivo);
+          })
+          .catch((error) => {
+            console.error('Error al generar PDF:', error);
+            document.body.removeChild(container);
+            alert('Error al generar el PDF. Intente nuevamente.');
+          });
+      } else {
+        // Metodo alternativo: mostrar mensaje de error
+        document.body.removeChild(container);
+        alert('La libreria html2pdf no esta cargada. Por favor, recargue la pagina e intente nuevamente.');
+      }
+    }
+
+    // ========================================
+    // IMPRIMIR REPORTE (abre dialogo de impresion)
+    // ========================================
+    imprimirReporte() {
+      const data = this.generarContenidoReporte();
+      if (!data) return;
+
+      const { reporte, orden, equipo, cliente, problemas, observacionesEquipo, trabajos, repuestos, formatCurrency } = data;
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Reporte Técnico - ${orden.numero_orden || 'N/A'}</title>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            @page { size: A4 portrait; margin: 10mm; }
+            body { font-family: Arial, sans-serif; font-size: 11px; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3b82f6; }
+            .header h1 { color: #3b82f6; font-size: 18px; }
+            .header .orden-info { text-align: right; }
+            .section { margin-bottom: 20px; }
+            .section h3 { background: #3b82f6; color: white; padding: 8px 12px; font-size: 12px; margin-bottom: 10px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            .item { padding: 5px 0; }
+            .item .label { font-weight: bold; color: #555; font-size: 10px; }
+            .item .value { color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
+            th { background: #f5f5f5; font-weight: bold; }
+            .totals { background: #3b82f6; color: white; padding: 15px; margin-top: 20px; text-align: right; }
+            .totals .row { padding: 5px 0; }
+            .totals .grand { font-size: 16px; font-weight: bold; border-top: 1px solid white; padding-top: 10px; margin-top: 10px; }
+            .problema-item { background: #fff3f3; padding: 5px 10px; margin: 3px 0; border-left: 3px solid #e53e3e; }
+            .accesorio { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; font-size: 9px; }
+            .accesorio.yes { background: #d4edda; color: #155724; }
+            .accesorio.no { background: #f8d7da; color: #721c24; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>REPORTE TÉCNICO</h1>
+              <p>www.intecnic.com</p>
+              <p>CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2</p>
+              <p>Teléfono: 0999339586 | Email: tecnishop.imp@gmail.com</p>
+            </div>
+            <div class="orden-info">
+              <p><strong>Reporte No:</strong> ${reporte.id}</p>
+              <p><strong>Orden:</strong> ${orden.numero_orden || 'N/A'}</p>
+              <p><strong>Fecha:</strong> ${orden.fecha || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>DATOS DEL CLIENTE</h3>
+            <div class="grid">
+              <div class="item"><span class="label">Nombre:</span> <span class="value">${cliente.nombre || ''} ${cliente.apellido || ''}</span></div>
+              <div class="item"><span class="label">CI/RUC:</span> <span class="value">${cliente.ci || 'N/A'}</span></div>
+              <div class="item"><span class="label">Teléfono:</span> <span class="value">${cliente.telefono || 'N/A'}</span></div>
+              <div class="item"><span class="label">Correo:</span> <span class="value">${cliente.correo || 'N/A'}</span></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>DATOS DEL EQUIPO</h3>
+            <div class="grid">
+              <div class="item"><span class="label">Artículo:</span> <span class="value">${equipo.nombre || 'N/A'}</span></div>
+              <div class="item"><span class="label">Marca:</span> <span class="value">${equipo.marca || 'N/A'}</span></div>
+              <div class="item"><span class="label">Modelo:</span> <span class="value">${equipo.modelo || 'N/A'}</span></div>
+              <div class="item"><span class="label">No. Serie:</span> <span class="value">${equipo.numero_serie || 'N/A'}</span></div>
+            </div>
+            
+            <p style="margin-top: 10px;"><strong>Problemas Reportados:</strong></p>
+            ${problemas.map(p => `<div class="problema-item">${p.problema}</div>`).join('') || '<p style="color: #666; font-style: italic;">Sin problemas registrados</p>'}
+            
+            <p style="margin-top: 10px;"><strong>Accesorios:</strong></p>
+            <span class="accesorio ${observacionesEquipo.cargador ? 'yes' : 'no'}">${observacionesEquipo.cargador ? 'SI' : 'NO'} Cargador</span>
+            <span class="accesorio ${observacionesEquipo.bateria ? 'yes' : 'no'}">${observacionesEquipo.bateria ? 'SI' : 'NO'} Bateria</span>
+            <span class="accesorio ${observacionesEquipo.cable_poder ? 'yes' : 'no'}">${observacionesEquipo.cable_poder ? 'SI' : 'NO'} Cable Poder</span>
+            <span class="accesorio ${observacionesEquipo.cable_datos ? 'yes' : 'no'}">${observacionesEquipo.cable_datos ? 'SI' : 'NO'} Cable Datos</span>
+            ${observacionesEquipo.otros ? `<p style="margin-top: 5px;"><strong>Otros:</strong> ${observacionesEquipo.otros}</p>` : ''}
+          </div>
+
+          <div class="section">
+            <h3>TRABAJOS REALIZADOS</h3>
+            ${trabajos.length > 0 ? `
+              <table>
+                <thead><tr><th>Descripción</th><th style="text-align: right; width: 100px;">Costo</th></tr></thead>
+                <tbody>
+                  ${trabajos.map(t => `<tr><td>${t.descripcion || 'N/A'}</td><td style="text-align: right;">${formatCurrency(t.costo)}</td></tr>`).join('')}
+                </tbody>
+              </table>
+            ` : '<p style="color: #666; font-style: italic;">Sin trabajos registrados</p>'}
+          </div>
+
+          <div class="section">
+            <h3>REPUESTOS UTILIZADOS</h3>
+            ${repuestos.length > 0 ? `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Repuesto</th>
+                    <th style="text-align: center; width: 60px;">Cant.</th>
+                    <th style="text-align: right; width: 80px;">P.Unit</th>
+                    <th style="text-align: right; width: 80px;">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${repuestos.map(r => `
+                    <tr>
+                      <td>${r.nombre_repuesto || r.nombre || 'N/A'}</td>
+                      <td style="text-align: center;">${r.cantidad || 1}</td>
+                      <td style="text-align: right;">${formatCurrency(r.precio_unitario || r.precio)}</td>
+                      <td style="text-align: right;">${formatCurrency(r.subtotal)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            ` : '<p style="color: #666; font-style: italic;">Sin repuestos registrados</p>'}
+          </div>
+
+          ${reporte.observaciones ? `
+            <div class="section">
+              <h3>OBSERVACIONES</h3>
+              <p style="padding: 10px; background: #f9f9f9; border: 1px solid #ddd;">${reporte.observaciones}</p>
+            </div>
+          ` : ''}
+
+          <div class="totals">
+            <div class="row">Total Trabajos: ${formatCurrency(reporte.total_trabajos)}</div>
+            <div class="row">Total Repuestos: ${formatCurrency(reporte.total_repuestos)}</div>
+            <div class="row grand">TOTAL GENERAL: ${formatCurrency(reporte.total_general)}</div>
+          </div>
+
+          <div style="margin-top: 60px; display: flex; justify-content: space-between;">
+            <div style="text-align: center;">
+              <div style="border-top: 1px solid #333; width: 200px; padding-top: 5px;">FIRMA DEL CLIENTE</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="border-top: 1px solid #333; width: 200px; padding-top: 5px;">TÉCNICO RESPONSABLE</div>
+            </div>
+          </div>
+
+          <p style="text-align: center; margin-top: 30px; color: #888; font-size: 9px;">
+            Reporte generado el: ${new Date().toLocaleString('es-EC')}
+          </p>
+        </body>
+        </html>
+      `;
+
+      // Abrir ventana de impresión
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+
+      // Esperar a que cargue y luego imprimir
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    }
+
+    // ========================================
+    // CREAR HTML DEL REPORTE (usado por descargarPDF)
+    // ========================================
+    crearHTMLReporte(data) {
+      const { reporte, orden, equipo, cliente, problemas, observacionesEquipo, trabajos, repuestos, formatCurrency } = data;
+
+      return `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Reporte Tecnico - ${orden.numero_orden || 'N/A'}</title>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: Arial, sans-serif; font-size: 11px; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3b82f6; }
+            .header h1 { color: #3b82f6; font-size: 18px; }
+            .header .orden-info { text-align: right; }
+            .section { margin-bottom: 20px; }
+            .section h3 { background: #3b82f6; color: white; padding: 8px 12px; font-size: 12px; margin-bottom: 10px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            .item { padding: 5px 0; }
+            .item .label { font-weight: bold; color: #555; font-size: 10px; }
+            .item .value { color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }
+            th { background: #f5f5f5; font-weight: bold; }
+            .totals { background: #3b82f6; color: white; padding: 15px; margin-top: 20px; text-align: right; }
+            .totals .row { padding: 5px 0; }
+            .totals .grand { font-size: 16px; font-weight: bold; border-top: 1px solid white; padding-top: 10px; margin-top: 10px; }
+            .problema-item { background: #fff3f3; padding: 5px 10px; margin: 3px 0; border-left: 3px solid #e53e3e; }
+            .accesorio { display: inline-block; padding: 3px 8px; margin: 2px; border-radius: 10px; font-size: 9px; }
+            .accesorio.yes { background: #d4edda; color: #155724; }
+            .accesorio.no { background: #f8d7da; color: #721c24; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1>REPORTE TECNICO</h1>
+              <p>www.intecnic.com</p>
+              <p>CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2</p>
+              <p>Telefono: 0999339586 | Email: tecnishop.imp@gmail.com</p>
+            </div>
+            <div class="orden-info">
+              <p><strong>Reporte No:</strong> ${reporte.id}</p>
+              <p><strong>Orden:</strong> ${orden.numero_orden || 'N/A'}</p>
+              <p><strong>Fecha:</strong> ${orden.fecha || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>DATOS DEL CLIENTE</h3>
+            <div class="grid">
+              <div class="item"><span class="label">Nombre:</span> <span class="value">${cliente.nombre || ''} ${cliente.apellido || ''}</span></div>
+              <div class="item"><span class="label">CI/RUC:</span> <span class="value">${cliente.ci || 'N/A'}</span></div>
+              <div class="item"><span class="label">Telefono:</span> <span class="value">${cliente.telefono || 'N/A'}</span></div>
+              <div class="item"><span class="label">Correo:</span> <span class="value">${cliente.correo || 'N/A'}</span></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>DATOS DEL EQUIPO</h3>
+            <div class="grid">
+              <div class="item"><span class="label">Articulo:</span> <span class="value">${equipo.nombre || 'N/A'}</span></div>
+              <div class="item"><span class="label">Marca:</span> <span class="value">${equipo.marca || 'N/A'}</span></div>
+              <div class="item"><span class="label">Modelo:</span> <span class="value">${equipo.modelo || 'N/A'}</span></div>
+              <div class="item"><span class="label">No. Serie:</span> <span class="value">${equipo.numero_serie || 'N/A'}</span></div>
+            </div>
+            
+            <p style="margin-top: 10px;"><strong>Problemas Reportados:</strong></p>
+            ${problemas.map(p => '<div class="problema-item">' + p.problema + '</div>').join('') || '<p style="color: #666; font-style: italic;">Sin problemas registrados</p>'}
+            
+            <p style="margin-top: 10px;"><strong>Accesorios:</strong></p>
+            <span class="accesorio ${observacionesEquipo.cargador ? 'yes' : 'no'}">${observacionesEquipo.cargador ? 'SI' : 'NO'} Cargador</span>
+            <span class="accesorio ${observacionesEquipo.bateria ? 'yes' : 'no'}">${observacionesEquipo.bateria ? 'SI' : 'NO'} Bateria</span>
+            <span class="accesorio ${observacionesEquipo.cable_poder ? 'yes' : 'no'}">${observacionesEquipo.cable_poder ? 'SI' : 'NO'} Cable Poder</span>
+            <span class="accesorio ${observacionesEquipo.cable_datos ? 'yes' : 'no'}">${observacionesEquipo.cable_datos ? 'SI' : 'NO'} Cable Datos</span>
+            ${observacionesEquipo.otros ? '<p style="margin-top: 5px;"><strong>Otros:</strong> ' + observacionesEquipo.otros + '</p>' : ''}
+          </div>
+
+          <div class="section">
+            <h3>TRABAJOS REALIZADOS</h3>
+            ${trabajos.length > 0 ?
+          '<table><thead><tr><th>Descripcion</th><th style="text-align: right; width: 100px;">Costo</th></tr></thead><tbody>' +
+          trabajos.map(t => '<tr><td>' + (t.descripcion || 'N/A') + '</td><td style="text-align: right;">' + formatCurrency(t.costo) + '</td></tr>').join('') +
+          '</tbody></table>'
+          : '<p style="color: #666; font-style: italic;">Sin trabajos registrados</p>'}
+          </div>
+
+          <div class="section">
+            <h3>REPUESTOS UTILIZADOS</h3>
+            ${repuestos.length > 0 ?
+          '<table><thead><tr><th>Repuesto</th><th style="text-align: center; width: 60px;">Cant.</th><th style="text-align: right; width: 80px;">P.Unit</th><th style="text-align: right; width: 80px;">Subtotal</th></tr></thead><tbody>' +
+          repuestos.map(r => '<tr><td>' + (r.nombre_repuesto || r.nombre || 'N/A') + '</td><td style="text-align: center;">' + (r.cantidad || 1) + '</td><td style="text-align: right;">' + formatCurrency(r.precio_unitario || r.precio) + '</td><td style="text-align: right;">' + formatCurrency(r.subtotal) + '</td></tr>').join('') +
+          '</tbody></table>'
+          : '<p style="color: #666; font-style: italic;">Sin repuestos registrados</p>'}
+          </div>
+
+          ${reporte.observaciones ?
+          '<div class="section"><h3>OBSERVACIONES</h3><p style="padding: 10px; background: #f9f9f9; border: 1px solid #ddd;">' + reporte.observaciones + '</p></div>'
+          : ''}
+
+          <div class="totals">
+            <div class="row">Total Trabajos: ${formatCurrency(reporte.total_trabajos)}</div>
+            <div class="row">Total Repuestos: ${formatCurrency(reporte.total_repuestos)}</div>
+            <div class="row grand">TOTAL GENERAL: ${formatCurrency(reporte.total_general)}</div>
+          </div>
+
+          <div style="margin-top: 60px; display: flex; justify-content: space-between;">
+            <div style="text-align: center;">
+              <div style="border-top: 1px solid #333; width: 200px; padding-top: 5px;">FIRMA DEL CLIENTE</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="border-top: 1px solid #333; width: 200px; padding-top: 5px;">TECNICO RESPONSABLE</div>
+            </div>
+          </div>
+
+          <p style="text-align: center; margin-top: 30px; color: #888; font-size: 9px;">
+            Reporte generado el: ${new Date().toLocaleString('es-EC')}
+          </p>
+        </body>
+        </html>
+      `;
+    }
 
     // ========================================
     // OBTENER INFO DEL CLIENTE
@@ -527,4 +1327,14 @@
   // Register the service for initialization
   window.sectionServices = window.sectionServices || {};
   window.sectionServices.reportes = new ReportesService();
+
+  // Exponer funciones globales para los botones del modal
+  window.abrirModalReporte = (id) => window.sectionServices.reportes.abrirModalReporte(id);
+  window.cerrarModalReporte = () => window.sectionServices.reportes.cerrarModalReporte();
+  window.descargarPDF = () => window.sectionServices.reportes.descargarPDF();
+  window.imprimirReporte = () => window.sectionServices.reportes.imprimirReporte();
+
+  // Exponer funciones globales para los filtros
+  window.filtrarReportes = () => window.sectionServices.reportes.filtrarReportes();
+  window.limpiarFiltros = () => window.sectionServices.reportes.limpiarFiltros();
 })();

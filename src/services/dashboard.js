@@ -149,8 +149,8 @@
       const fechaOrden = new Date(orden.fecha);
       const hoy = new Date();
       const diffDias = Math.floor((hoy - fechaOrden) / (1000 * 60 * 60 * 24));
-      if (diffDias === 0 && orden.estado =="PENDIENTE") return 'NUEVO';
-      const estado= orden.estado
+      if (diffDias === 0 && orden.estado == "PENDIENTE") return 'NUEVO';
+      const estado = orden.estado
       return estado;
     }
 
@@ -230,30 +230,99 @@
     }
 
     mostrarModalDetalles(orden) {
+      // Eliminar modal existente si hay uno
+      const modalExistente = document.getElementById('dashboard-orden-modal');
+      if (modalExistente) {
+        modalExistente.remove();
+      }
+
       const modalHTML = `
-        <div class="modal-overlay">
-          <div class="modal-content">
-            <h3>${orden.numero_orden}</h3>
-            <div class="detalles-orden">
-              <p><strong>Fecha:</strong> ${this.formatearFecha(orden.fecha)}</p>
-              <p><strong>Realiza:</strong> ${orden.realiza_orden}</p>
-              <p><strong>Cliente:</strong> ${this.obtenerNombreCliente(orden)}</p>
-              <p><strong>Equipo:</strong> ${this.obtenerInfoEquipo(orden)}</p>
-              <p><strong>Número de Serie:</strong> ${orden.equipo?.numero_serie || 'N/A'}</p>
-              <p><strong>Problemas:</strong></p>
-              <ul>
-                ${this.generarListaProblemas(orden)}
-              </ul>
-              <p><strong>Observaciones:</strong></p>
-              <ul>
-                ${this.generarListaObservaciones(orden)}
-              </ul>
+        <div class="modal-overlay active" id="dashboard-orden-modal">
+          <div class="modal-container">
+            <div class="modal-header">
+              <h2>${orden.numero_orden}</h2>
+              <button class="modal-close-btn" onclick="document.getElementById('dashboard-orden-modal').remove()">&times;</button>
             </div>
-            <button onclick="this.closest('.modal-overlay').remove()">Cerrar</button>
+            <div class="modal-body">
+              <div class="detail-section">
+                <h3>Información de la Orden</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Fecha</span>
+                    <span class="detail-value">${this.formatearFecha(orden.fecha)}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Realiza</span>
+                    <span class="detail-value">${orden.realiza_orden || 'N/A'}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Estado</span>
+                    <span class="detail-value">${orden.estado || 'Pendiente'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="detail-section">
+                <h3>Cliente</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Nombre</span>
+                    <span class="detail-value">${this.obtenerNombreCliente(orden)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="detail-section">
+                <h3>Equipo</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Equipo</span>
+                    <span class="detail-value">${this.obtenerInfoEquipo(orden)}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">No. Serie</span>
+                    <span class="detail-value">${orden.equipo?.numero_serie || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="detail-section">
+                <h3>Problemas Reportados</h3>
+                <ul class="problems-list">
+                  ${this.generarListaProblemas(orden)}
+                </ul>
+              </div>
+              
+              <div class="detail-section">
+                <h3>Observaciones/Accesorios</h3>
+                <div class="accessories-grid">
+                  ${this.generarAccesorios(orden)}
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" onclick="document.getElementById('dashboard-orden-modal').remove()">Cerrar</button>
+            </div>
           </div>
         </div>
       `;
       document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    generarAccesorios(orden) {
+      if (orden.equipo && orden.equipo.observaciones && orden.equipo.observaciones.length > 0) {
+        const obs = orden.equipo.observaciones[0];
+        let html = '';
+        html += `<span class="accessory-badge ${obs.cargador ? 'yes' : 'no'}">Cargador: ${obs.cargador ? 'Sí' : 'No'}</span>`;
+        html += `<span class="accessory-badge ${obs.bateria ? 'yes' : 'no'}">Batería: ${obs.bateria ? 'Sí' : 'No'}</span>`;
+        html += `<span class="accessory-badge ${obs.cable_poder ? 'yes' : 'no'}">Cable Poder: ${obs.cable_poder ? 'Sí' : 'No'}</span>`;
+        html += `<span class="accessory-badge ${obs.cable_datos ? 'yes' : 'no'}">Cable Datos: ${obs.cable_datos ? 'Sí' : 'No'}</span>`;
+        if (obs.otros) {
+          html += `<span class="accessory-badge yes">Otros: ${obs.otros}</span>`;
+        }
+        return html;
+      }
+      return '<span class="accessory-badge no">Sin accesorios registrados</span>';
     }
 
     generarListaProblemas(orden) {

@@ -11,6 +11,7 @@ function createWindow() {
       contextIsolation: false, // Para usar require en el renderer
       enableRemoteModule: true,
     },
+    icon: 'src/assets/tecnishopicon.ico',
   });
 
   // Cargar pantalla de login
@@ -27,7 +28,7 @@ function createWindow() {
 // ✅ Escuchar evento de login exitoso
 ipcMain.on('login-success', (event, userData) => {
   console.log('✅ Login exitoso:', userData);
-  
+
   // Cambiar a la pantalla principal/dashboard
   mainWindow.loadFile('index.html');
   // O si tienes index.html:
@@ -37,7 +38,7 @@ ipcMain.on('login-success', (event, userData) => {
 // ✅ Escuchar evento de logout
 ipcMain.on('logout', () => {
   console.log('🔒 Cerrando sesión...');
-  
+
   // Volver a la pantalla de login
   mainWindow.loadFile('src/main/screens/login/loginScreen.html');
 });

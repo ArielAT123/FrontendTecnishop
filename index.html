@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tecnishop - Sistema de Gestión</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="./src/main/screens/ordenes.css">
+  <link rel="stylesheet" href="./src/main/screens/reportes.css">
+  <link rel="stylesheet" href="./src/main/screens/configuracion.css">
 </head>
 
 <body>
@@ -70,7 +73,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
           </svg>
-          <div class="texto">  
+          <div class="texto">
             Reportes y Estadísticas
           </div>
         </div>
@@ -87,7 +90,8 @@
         </div>
       </div>
       <button id="toggle-sidebar" class="toggle-button">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="24" stroke="currentColor" class="size-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="24"
+          stroke="currentColor" class="size-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
         </svg>
       </button>
@@ -110,6 +114,9 @@
       <div id="content-area"></div>
     </div>
   </div>
+
+  <!-- Libreria para generar PDF desde HTML -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <script src="./src/services/api.js"></script>
   <script src="./src/assets/js/app.js"></script>

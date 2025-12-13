@@ -277,9 +277,9 @@
               otros: observaciones.otros || ''
             }
           };
-        } ));
+        }));
 
-        localStorage.setItem("Ordenes",JSON.stringify(ordenesTransformadas));
+        localStorage.setItem("Ordenes", JSON.stringify(ordenesTransformadas));
         console.log("ORDENES TRNASFORMADAS", localStorage.getItem("Ordenes"));
         //console.log('Órdenes transformadas:', ordenesTransformadas);
         this.renderOrdenesRecientes(ordenesTransformadas);
@@ -394,6 +394,9 @@
         modal = this.crearModalReporte();
       }
 
+      // Guardar la orden seleccionada para poder descargar PDF
+      this.ordenSeleccionada = orden;
+
       // Llenar datos del reporte
       this.llenarDatosReporte(orden);
 
@@ -411,6 +414,10 @@
             <div class="reporte-modal-header">
               <h3>Orden de Servicio</h3>
               <div class="reporte-modal-actions">
+                <button id="descargar-pdf-orden-btn" class="btn btn-success" style="background: #10b981; margin-right: 5px;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="18" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg> Descargar PDF</button>
                 <button id="imprimir-reporte-btn" class="btn btn-primary">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="18" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
@@ -442,6 +449,10 @@
         this.imprimirReporte();
       });
 
+      document.getElementById('descargar-pdf-orden-btn').addEventListener('click', () => {
+        this.descargarPDFOrden();
+      });
+
       // Cerrar al hacer clic fuera del modal
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -461,7 +472,88 @@
         if (!response.ok) {
           throw new Error(`Error al cargar template: ${response.status}`);
         }
-        return await response.text();
+        const htmlCompleto = await response.text();
+
+        // Extraer solo el contenido del body para evitar que los estilos afecten la página principal
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlCompleto, 'text/html');
+        const bodyContent = doc.body.innerHTML;
+
+        // Retornar el contenido envuelto en un contenedor con estilos scoped
+        return `
+          <div class="reporte-preview-container" style="background: white; padding: 10px;">
+            <style>
+              .reporte-preview-container * {
+                box-sizing: border-box;
+              }
+              .reporte-preview-container .page-container {
+                width: 100%;
+                max-width: 210mm;
+                margin: 0 auto;
+                font-family: Arial, sans-serif;
+                font-size: 9px;
+              }
+              .reporte-preview-container .reporte-section {
+                border: 1px solid #000;
+                margin-bottom: 10px;
+                padding: 5px;
+              }
+              .reporte-preview-container .copia-label {
+                background: #f0f0f0;
+                text-align: center;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px;
+                border-bottom: 1px solid #000;
+              }
+              .reporte-preview-container table {
+                width: 100%;
+                border-collapse: collapse;
+              }
+              .reporte-preview-container td, .reporte-preview-container th {
+                border: 1px solid #000;
+                padding: 4px 6px;
+                vertical-align: middle;
+              }
+              .reporte-preview-container .header-table td {
+                border: none;
+                border-bottom: 1px solid #000;
+              }
+              .reporte-preview-container .header-table .logo-cell {
+                font-weight: bold;
+                font-size: 14px;
+                border-right: 1px solid #000;
+              }
+              .reporte-preview-container .header-table .orden-cell {
+                font-weight: bold;
+                font-size: 14px;
+                text-align: center;
+              }
+              .reporte-preview-container .divider {
+                text-align: center;
+                padding: 5px;
+                color: #666;
+                font-size: 10px;
+              }
+              .reporte-preview-container .condiciones-firma-table td {
+                font-size: 8px;
+                vertical-align: top;
+              }
+              .reporte-preview-container .firma-cell {
+                text-align: center;
+                vertical-align: bottom;
+              }
+              .reporte-preview-container .firma-line {
+                border-top: 1px solid #000;
+                margin-top: 30px;
+                padding-top: 5px;
+                font-size: 10px;
+                font-weight: bold;
+              }
+            </style>
+            ${bodyContent}
+          </div>
+        `;
       } catch (error) {
         console.error('Error cargando template de reporte:', error);
         // Fallback template básico
@@ -628,6 +720,56 @@
       if (element) {
         element.textContent = content;
       }
+    }
+
+    // ========================================
+    // DESCARGAR PDF DE ORDEN
+    // ========================================
+    descargarPDFOrden() {
+      const reporteContent = document.getElementById('reporte-content');
+      if (!reporteContent) {
+        alert('No hay contenido para descargar');
+        return;
+      }
+
+      const orden = this.ordenSeleccionada;
+      const nombreArchivo = `Orden_${orden?.numero_orden || 'servicio'}.pdf`;
+
+      // Verificar si html2pdf está disponible
+      if (typeof html2pdf === 'undefined') {
+        alert('La libreria html2pdf no esta disponible. El PDF no se puede generar.');
+        return;
+      }
+
+      // Configuración para html2pdf
+      const opciones = {
+        margin: 5,
+        filename: nombreArchivo,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'portrait'
+        }
+      };
+
+      // Generar y descargar el PDF
+      html2pdf()
+        .set(opciones)
+        .from(reporteContent)
+        .save()
+        .then(() => {
+          console.log('PDF descargado exitosamente:', nombreArchivo);
+        })
+        .catch((error) => {
+          console.error('Error al generar PDF:', error);
+          alert('Error al generar el PDF. Intente nuevamente.');
+        });
     }
 
     // ========================================
@@ -1184,7 +1326,7 @@
             "Content-Type": "application/json",
             "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,
           },
-           body: JSON.stringify(datosOrden)
+          body: JSON.stringify(datosOrden)
         });
 
         if (!ordenResponse.ok) {

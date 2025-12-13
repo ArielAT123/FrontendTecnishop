@@ -1,278 +1,479 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <title>Orden de Servicio</title>
   <style>
-    /* Estilos para impresión */
-    @page {
-      size: letter portrait;
-      margin: 0.5cm;
-    }
-
-    @media print {
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-      }
-      
-      section {
-        page-break-inside: avoid;
-        height: 49%;
-        margin-bottom: 2%;
-      }
-      
-      section:last-child {
-        margin-bottom: 0;
-      }
-    }
-
-    section{
-      padding: 0;
-      border: 1px solid #000;
-      margin-bottom: 1px;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 10px;
-      display: flex;
-      flex-direction: column;
+    /* Reset y estilos base */
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+
+    html,
+    body {
+      width: 210mm;
+      height: 297mm;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      font-size: 9px;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    @media print {
+
+      html,
+      body {
+        width: 210mm;
+        height: 297mm;
+        margin: 0;
+        padding: 0;
+      }
+    }
+
+    @media screen {
+      body {
+        background-color: #e0e0e0;
+        padding: 10px;
+      }
+
+      .page-container {
+        background: white;
+        width: 210mm;
+        height: 297mm;
+        margin: 0 auto;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+    }
+
+    /* Contenedor de página A4 */
+    .page-container {
+      width: 210mm;
+      height: 297mm;
+      padding: 3mm;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Cada reporte ocupa la mitad de la página */
+    .reporte-section {
+      height: calc(50% - 3mm);
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #000;
+      margin-bottom: 2mm;
+      overflow: hidden;
+    }
+
+    .reporte-section:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Línea divisora */
+    .divider {
+      border-top: 1px dashed #999;
+      margin: 1mm 0;
+      text-align: center;
+      font-size: 7px;
+      color: #666;
+    }
+
+    /* Etiqueta de copia */
+    .copia-label {
+      height: 4%;
+      background: #f0f0f0;
+      text-align: center;
+      font-weight: bold;
+      font-size: 8px;
+      padding: 2px;
+      border-bottom: 1px solid #000;
+    }
+
+    /* Tablas base */
     table {
       border-collapse: collapse;
       width: 100%;
+      table-layout: fixed;
     }
-    
-    td, th {
-      padding: 5px;
+
+    td,
+    th {
+      padding: 3px 5px;
+      vertical-align: middle;
+      border: 1px solid #000;
+      word-wrap: break-word;
+    }
+
+    /* Header de la empresa - 18% */
+    .header-table {
+      height: 18%;
+      background: #fff;
+    }
+
+    .header-table td {
+      border: none;
+      border-bottom: 1px solid #000;
+    }
+
+    .header-table .logo-cell {
+      font-weight: bold;
+      font-size: 11px;
+      padding: 4px 6px;
+      width: 50%;
+      border-right: 1px solid #000;
+    }
+
+    .header-table .orden-cell {
+      font-weight: bold;
+      font-size: 11px;
+      text-align: center;
+      width: 50%;
+    }
+
+    .header-table .info-cell {
+      font-size: 7px;
+      line-height: 1.3;
+      padding: 4px 6px;
+      border-right: 1px solid #000;
+    }
+
+    .header-table .numero-cell {
+      font-size: 9px;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    /* Datos del cliente - 12% */
+    .cliente-table {
+      height: 12%;
+    }
+
+    .cliente-table td {
+      padding: 3px 5px;
+      font-size: 8px;
+    }
+
+    .cliente-table .label {
+      font-weight: bold;
+      background: #f8f8f8;
+      width: 11%;
+    }
+
+    .cliente-table .value {
+      width: 22%;
+    }
+
+    /* Tabla de datos del equipo - 25% */
+    .equipo-table {
+      height: 25%;
+    }
+
+    .equipo-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      font-size: 7px;
+      padding: 4px;
+      text-align: center;
+    }
+
+    .equipo-table td {
+      padding: 4px;
+      font-size: 8px;
+      text-align: center;
+    }
+
+    .equipo-table .problemas-cell {
+      text-align: left;
       vertical-align: top;
     }
-    
-    .bordered {
-      border: 1px solid #000;
+
+    /* Observaciones - 15% */
+    .observaciones-table {
+      height: 15%;
     }
-    
-    .no-border {
-      border: none;
+
+    .observaciones-table td {
+      padding: 3px 4px;
+      font-size: 7px;
     }
-    
-    .subheader {
-      font-size: 10px;
-      text-align: left;
-    }
-    
-    .title {
-      text-align: left;
+
+    .observaciones-table .obs-label {
       font-weight: bold;
-      font-size: 16px;
+      background: #f8f8f8;
+      width: 12%;
+      text-align: center;
+      vertical-align: middle;
     }
-    
-    .conditions {
-      padding-left: 5px;
-      padding-right: 5px;
-      font-size: 8px;
+
+    .observaciones-table .acc-label {
+      font-weight: bold;
+      text-align: center;
+      background: #f8f8f8;
+    }
+
+    .observaciones-table .acc-value {
+      text-align: center;
+      width: 6%;
+    }
+
+    /* Tabla de condiciones y firma - 26% */
+    .condiciones-firma-table {
+      height: 26%;
+      width: 100%;
+    }
+
+    .condiciones-firma-table td {
+      padding: 4px 6px;
+      font-size: 6px;
       text-align: justify;
-      margin: 5px 0;
+      line-height: 1.3;
+      vertical-align: top;
+    }
+
+    .condiciones-firma-table .condiciones-cell {
+      background: #fafafa;
+      width: 60%;
+    }
+
+    .condiciones-firma-table .condiciones-cell b {
+      font-size: 7px;
+    }
+
+    .condiciones-firma-table .firma-cell {
+      width: 20%;
+      text-align: center;
+      vertical-align: bottom;
+      padding-bottom: 6px;
+    }
+
+    .firma-line {
+      border-top: 1px solid #000;
+      padding-top: 3px;
+      margin-top: 20px;
+      font-size: 7px;
+      font-weight: bold;
+      text-align: center;
     }
   </style>
 </head>
+
 <body>
-<section>
-  <table>
-    <tr>
-      <td colspan="2" class="title bordered">
-        www.intecnic.com
-      </td>
-      <td colspan="4" class="title bordered">
-        Orden <br>
-      </td>
-    </tr>
-    <tr>
-      <td colspan="3" class="subheader bordered">
-        CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2 <br>
-        Teléfonos: 0999339586 (WhatsApp) <br>
-        R.U.C. 0917526758001 <br>
-        Email: tecnishop.imp@gmail.com
-      </td>
-      <td colspan="2" class="bordered">
-        <b>No: </b><span id="reporte-numero"></span><br>
-      </td>
-    </tr>
-  </table>
+  <div class="page-container">
+    <!-- REPORTE 1: Copia Cliente -->
+    <div class="reporte-section">
+      <div class="copia-label">COPIA CLIENTE</div>
 
-  <table>
-    <tr>
-      <td width="15%" class="bordered"><b>CLIENTE:</b></td>
-      <td width="20%" class="bordered" id="reporte-cliente-nombre"></td>
-      <td width="15%" class="bordered"><b>C.I./R.U.C.:</b></td>
-      <td class="bordered" id="reporte-cliente-ci"></td>
-      <td width="15%" class="bordered"><b>FECHA:</b></td>
-      <td class="bordered" id="reporte-fecha"></td>
-    </tr>
-    <tr>
-      <td class="bordered"><b>TELÉFONO:</b></td>
-      <td class="bordered" id="reporte-telefono"></td>
-      <td class="bordered"><b>E-MAIL:</b></td>
-      <td colspan="3" class="bordered" id="reporte-email"></td>
-    </tr>
-  </table>
+      <!-- Header -->
+      <table class="header-table">
+        <tr>
+          <td class="logo-cell">www.intecnic.com</td>
+          <td class="orden-cell">Orden de Servicio</td>
+        </tr>
+        <tr>
+          <td class="info-cell">
+            CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2<br>
+            Tel: 0999339586 (WhatsApp) | R.U.C. 0917526758001<br>
+            Email: tecnishop.imp@gmail.com
+          </td>
+          <td class="numero-cell">
+            <b>No:</b> <span id="reporte-numero"></span>
+          </td>
+        </tr>
+      </table>
 
-  <table>
-    <tr>
-      <th class="bordered">ARTICULO</th>
-      <th class="bordered">MARCA</th>
-      <th class="bordered">MODELO</th>
-      <th class="bordered">No. SERIE</th>
-      <th class="bordered">PROBLEMAS REPORTADOS</th>
-    </tr>
-    <tr>
-      <td class="bordered" id="reporte-articulo"></td>
-      <td class="bordered" id="reporte-marca"></td>
-      <td class="bordered" id="reporte-modelo"></td>
-      <td class="bordered" id="reporte-serie"></td>
-      <td style="height: 40px;" class="bordered" id="reporte-problemas"></td>
-    </tr>
-  </table>
+      <!-- Datos del Cliente -->
+      <table class="cliente-table">
+        <tr>
+          <td class="label"><b>CLIENTE:</b></td>
+          <td class="value" id="reporte-cliente-nombre"></td>
+          <td class="label"><b>C.I./RUC:</b></td>
+          <td class="value" id="reporte-cliente-ci"></td>
+          <td class="label"><b>FECHA:</b></td>
+          <td class="value" id="reporte-fecha"></td>
+        </tr>
+        <tr>
+          <td class="label"><b>TELÉFONO:</b></td>
+          <td class="value" id="reporte-telefono"></td>
+          <td class="label"><b>E-MAIL:</b></td>
+          <td class="value" colspan="3" id="reporte-email"></td>
+        </tr>
+      </table>
 
-  <table>
-    <tr>
-      <td rowspan="2" width="20%" class="bordered"><b>OBSERVACIONES</b></td>
-      <td width="10%" class="bordered"><b>CARGADOR</b></td>
-      <td width="10%" class="bordered" id="reporte-cargador"></td>
-      <td width="10%" class="bordered"><b>BATERIA</b></td>
-      <td width="10%" class="bordered" id="reporte-bateria"></td>
-      <td width="10%" class="bordered"><b>CABLE PODER</b></td>
-      <td width="10%" class="bordered" id="reporte-cable-poder"></td>
-      <td width="10%" class="bordered"><b>CABLE DATOS</b></td>
-      <td width="10%" class="bordered" id="reporte-cable-datos"></td>
-    </tr>
-    
-    <tr>
-      <td class="bordered"><b>OTROS:</b></td>
-      <td colspan="8" class="bordered" id="reporte-otros"></td>
-    </tr>
-  </table>
+      <!-- Datos del Equipo -->
+      <table class="equipo-table">
+        <tr>
+          <th style="width: 16%;">ARTÍCULO</th>
+          <th style="width: 14%;">MARCA</th>
+          <th style="width: 14%;">MODELO</th>
+          <th style="width: 14%;">No. SERIE</th>
+          <th style="width: 42%;">PROBLEMAS REPORTADOS</th>
+        </tr>
+        <tr>
+          <td id="reporte-articulo"></td>
+          <td id="reporte-marca"></td>
+          <td id="reporte-modelo"></td>
+          <td id="reporte-serie"></td>
+          <td class="problemas-cell" id="reporte-problemas"></td>
+        </tr>
+      </table>
 
-  <p class="conditions">
-    <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O CHEQUEADO 
-    NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR VENTA Y/O DESECHO EN EL CASO 
-    DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO PRESENTE O FUTURO. TECNISHOP NO SE RESPONSABILIZA 
-    POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ 
-    UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
-  </p>
+      <!-- Observaciones -->
+      <table class="observaciones-table">
+        <tr>
+          <td rowspan="2" class="obs-label"><b>OBSERVACIONES</b></td>
+          <td class="acc-label"><b>CARGADOR</b></td>
+          <td class="acc-value" id="reporte-cargador"></td>
+          <td class="acc-label"><b>BATERÍA</b></td>
+          <td class="acc-value" id="reporte-bateria"></td>
+          <td class="acc-label"><b>CABLE PODER</b></td>
+          <td class="acc-value" id="reporte-cable-poder"></td>
+          <td class="acc-label"><b>CABLE DATOS</b></td>
+          <td class="acc-value" id="reporte-cable-datos"></td>
+        </tr>
+        <tr>
+          <td class="acc-label"><b>OTROS:</b></td>
+          <td colspan="7" id="reporte-otros"></td>
+        </tr>
+      </table>
 
-  <table style="margin-top: 10px;">
-    <tr>
-      <td width="50%" class="no-border" style="text-align: center; vertical-align: bottom;">
-        <b>_______________________________<br>FIRMA DEL CLIENTE</b>
-      </td>
-      <td width="50%" class="no-border" style="text-align: center; vertical-align: bottom;">
-        <b>_______________________________<br>RECIBIDO POR</b>
-      </td>
-    </tr>
-  </table>
-</section>
+      <!-- Condiciones y Firmas -->
+      <table class="condiciones-firma-table">
+        <tr>
+          <td class="condiciones-cell">
+            <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O
+            CHEQUEADO NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR
+            VENTA Y/O
+            DESECHO EN EL CASO DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO
+            PRESENTE O
+            FUTURO. TECNISHOP NO SE RESPONSABILIZA POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU
+            RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE
+            DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
+          </td>
+          <td class="firma-cell">
+            <div class="firma-line">FIRMA DEL CLIENTE</div>
+          </td>
+          <td class="firma-cell">
+            <div class="firma-line">RECIBIDO POR</div>
+          </td>
+        </tr>
+      </table>
+    </div>
 
-<section>
-  <table>
-    <tr>
-      <td colspan="3" class="title bordered">
-        www.intecnic.com
-      </td>
-      <td colspan="4" class="title bordered">
-        Orden <br>
-      </td>
-    </tr>
-    <tr>
-      <td colspan="3" class="subheader bordered">
-        CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2 <br>
-        Teléfonos: 0999339586 (WhatsApp) <br>
-        R.U.C. 0917526758001 <br>
-        Email: tecnishop.imp@gmail.com
-      </td>
-      <td colspan="2" class="bordered">
-        <b>No: </b><span id="reporte-numero-2"></span><br>
-      </td>
-    </tr>
-  </table>
+    <!-- Línea de corte -->
+    <div class="divider">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>
 
-  <table>
-    <tr>
-      <td width="15%" class="bordered"><b>CLIENTE:</b></td>
-      <td width="20%" class="bordered" id="reporte-cliente-nombre-2"></td>
-      <td width="15%" class="bordered"><b>C.I./R.U.C.:</b></td>
-      <td class="bordered" id="reporte-cliente-ci-2"></td>
-      <td width="15%" class="bordered"><b>FECHA:</b></td>
-      <td class="bordered" id="reporte-fecha-2"></td>
-    </tr>
-    <tr>
-      <td class="bordered"><b>TELÉFONO:</b></td>
-      <td class="bordered" id="reporte-telefono-2"></td>
-      <td class="bordered"><b>E-MAIL:</b></td>
-      <td colspan="3" class="bordered" id="reporte-email-2"></td>
-    </tr>
-  </table>
+    <!-- REPORTE 2: Copia Taller -->
+    <div class="reporte-section">
+      <div class="copia-label">COPIA TECNICO</div>
 
-  <table>
-    <tr>
-      <th class="bordered">ARTICULO</th>
-      <th class="bordered">MARCA</th>
-      <th class="bordered">MODELO</th>
-      <th class="bordered">No. SERIE</th>
-      <th class="bordered">PROBLEMAS REPORTADOS</th>
-    </tr>
-    <tr>
-      <td class="bordered" id="reporte-articulo-2">Laptop</td>
-      <td class="bordered" id="reporte-marca-2">HP</td>
-      <td class="bordered" id="reporte-modelo-2">Pavilion</td>
-      <td class="bordered" id="reporte-serie-2">ABC123</td>
-      <td style="height: 40px;" class="bordered" id="reporte-problemas-2">No enciende</td>
-    </tr>
-  </table>
+      <!-- Header -->
+      <table class="header-table">
+        <tr>
+          <td class="logo-cell">www.intecnic.com</td>
+          <td class="orden-cell">Orden de Servicio</td>
+        </tr>
+        <tr>
+          <td class="info-cell">
+            CDLA. CONDOR MZ. G VILLA 13 LOCALES #1 Y #2<br>
+            Tel: 0999339586 (WhatsApp) | R.U.C. 0917526758001<br>
+            Email: tecnishop.imp@gmail.com
+          </td>
+          <td class="numero-cell">
+            <b>No:</b> <span id="reporte-numero-2"></span>
+          </td>
+        </tr>
+      </table>
 
-  <table>
-    <tr>
-      <td rowspan="2" width="20%" class="bordered"><b>OBSERVACIONES</b></td>
-      <td width="10%" class="bordered"><b>CARGADOR</b></td>
-      <td width="10%" class="bordered" id="reporte-cargador-2">SI</td>
-      <td width="10%" class="bordered"><b>BATERIA</b></td>
-      <td width="10%" class="bordered" id="reporte-bateria-2">SI</td>
-      <td width="10%" class="bordered"><b>CABLE PODER</b></td>
-      <td width="10%" class="bordered" id="reporte-cable-poder-2">NO</td>
-      <td width="10%" class="bordered"><b>CABLE DATOS</b></td>
-      <td width="10%" class="bordered" id="reporte-cable-datos-2">NO</td>
-    </tr>
-    
-    <tr>
-      <td class="bordered"><b>OTROS:</b></td>
-      <td colspan="8" class="bordered" id="reporte-otros-2">Ninguno</td>
-    </tr>
-  </table>
+      <!-- Datos del Cliente -->
+      <table class="cliente-table">
+        <tr>
+          <td class="label"><b>CLIENTE:</b></td>
+          <td class="value" id="reporte-cliente-nombre-2"></td>
+          <td class="label"><b>C.I./RUC:</b></td>
+          <td class="value" id="reporte-cliente-ci-2"></td>
+          <td class="label"><b>FECHA:</b></td>
+          <td class="value" id="reporte-fecha-2"></td>
+        </tr>
+        <tr>
+          <td class="label"><b>TELÉFONO:</b></td>
+          <td class="value" id="reporte-telefono-2"></td>
+          <td class="label"><b>E-MAIL:</b></td>
+          <td class="value" colspan="3" id="reporte-email-2"></td>
+        </tr>
+      </table>
 
-  <p class="conditions">
-    <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O CHEQUEADO 
-    NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR VENTA Y/O DESECHO EN EL CASO 
-    DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO PRESENTE O FUTURO. TECNISHOP NO SE RESPONSABILIZA 
-    POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ 
-    UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
-  </p>
+      <!-- Datos del Equipo -->
+      <table class="equipo-table">
+        <tr>
+          <th style="width: 16%;">ARTÍCULO</th>
+          <th style="width: 14%;">MARCA</th>
+          <th style="width: 14%;">MODELO</th>
+          <th style="width: 14%;">No. SERIE</th>
+          <th style="width: 42%;">PROBLEMAS REPORTADOS</th>
+        </tr>
+        <tr>
+          <td id="reporte-articulo-2"></td>
+          <td id="reporte-marca-2"></td>
+          <td id="reporte-modelo-2"></td>
+          <td id="reporte-serie-2"></td>
+          <td class="problemas-cell" id="reporte-problemas-2"></td>
+        </tr>
+      </table>
 
-  <table style="margin-top: 10px;">
-    <tr>
-      <td width="50%" class="no-border" style="text-align: center; vertical-align: bottom;">
-        <b>_______________________________<br>FIRMA DEL CLIENTE</b>
-      </td>
-      <td width="50%" class="no-border" style="text-align: center; vertical-align: bottom;">
-        <b>_______________________________<br>RECIBIDO POR</b>
-      </td>
-    </tr>
-  </table>
-</section>
+      <!-- Observaciones -->
+      <table class="observaciones-table">
+        <tr>
+          <td rowspan="2" class="obs-label"><b>OBSERVACIONES</b></td>
+          <td class="acc-label"><b>CARGADOR</b></td>
+          <td class="acc-value" id="reporte-cargador-2"></td>
+          <td class="acc-label"><b>BATERÍA</b></td>
+          <td class="acc-value" id="reporte-bateria-2"></td>
+          <td class="acc-label"><b>CABLE PODER</b></td>
+          <td class="acc-value" id="reporte-cable-poder-2"></td>
+          <td class="acc-label"><b>CABLE DATOS</b></td>
+          <td class="acc-value" id="reporte-cable-datos-2"></td>
+        </tr>
+        <tr>
+          <td class="acc-label"><b>OTROS:</b></td>
+          <td colspan="7" id="reporte-otros-2"></td>
+        </tr>
+      </table>
+
+      <!-- Condiciones y Firmas -->
+      <table class="condiciones-firma-table">
+        <tr>
+          <td class="condiciones-cell">
+            <b>CONDICIONES:</b> SI TRANSCURRIDOS 30 DÍAS POSTERIORES A LA EMISIÓN DE ESTA ORDEN EL ARTÍCULO REPARADO Y/O
+            CHEQUEADO NO HA SIDO RETIRADO, ESTE SERÁ DECLARADO EN ABANDONO Y ENTRARÁ A PROCESO DE REMATE, POSTERIOR
+            VENTA Y/O
+            DESECHO EN EL CASO DE DAÑO IRREPARABLE TOTAL DEL EQUIPO, TODO LO ANTERIOR DETALLADO SIN RECLAMO ALGUNO
+            PRESENTE O
+            FUTURO. TECNISHOP NO SE RESPONSABILIZA POR LOS EQUIPOS QUE NO PUEDAN SER COMPROBADOS ELECTRÓNICAMENTE EN SU
+            RESPECTIVO INGRESO AL TALLER. A TODO EQUIPO SE LE COBRARÁ UN VALOR POR CHEQUEO, EN CASO DE REPARACIÓN SE
+            DESCONTARÁ ESE VALOR. CON SU FIRMA EN ESTA ORDEN ACEPTA LAS CONDICIONES DESCRITAS EN LA PRESENTE.
+          </td>
+          <td class="firma-cell">
+            <div class="firma-line">FIRMA DEL CLIENTE</div>
+          </td>
+          <td class="firma-cell">
+            <div class="firma-line">RECIBIDO POR</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
 </body>
+
 </html>

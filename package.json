@@ -1,17 +1,49 @@
 {
   "name": "frontendtecnishop",
   "version": "1.0.0",
-  "description": "",
+  "description": "Tecnishop - Aplicación de Escritorio",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder --win --config.win.target=portable",
+    "build:installer": "electron-builder --win --config.win.target=nsis",
+    "build:dir": "electron-builder --win --dir",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "dist": "electron-builder --win --config.win.target=portable",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^38.1.2"
+    "electron": "^38.1.2",
+    "electron-builder": "^25.1.8",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.tecnishop.app",
+    "productName": "Tecnishop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "src/assets/tecnishopicon.ico"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
   }
 }

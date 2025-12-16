@@ -7,6 +7,14 @@
       this.clientes = [];
       this.equipos = [];
       this.isInitialized = false;
+
+      // Variables para scroll infinito
+      this.offset = 0;
+      this.limite = 10;
+      this.cargando = false;
+      this.hayMasOrdenes = true;
+      this.ordenesCache = []; // Cache local de órdenes cargadas
+      this.scrollHandler = null; // Referencia al handler de scroll
     }
 
     // ========================================
@@ -209,14 +217,42 @@
     }
 
     // ========================================
-    // CARGAR ÓRDENES RECIENTES
+    // CARGAR ÓRDENES RECIENTES (CON SCROLL INFINITO)
     // ========================================
     async cargarOrdenesRecientes() {
+      // Resetear estado para carga inicial
+      this.offset = 0;
+      this.hayMasOrdenes = true;
+      this.ordenesCache = [];
+
+      // Limpiar localStorage de órdenes anteriores para empezar fresco
+      localStorage.removeItem("Ordenes");
+
+      // Cargar primer lote
+      await this.cargarMasOrdenes(true);
+
+      // Configurar scroll infinito
+      this.setupScrollInfinito();
+    }
+
+    // ========================================
+    // CARGAR MÁS ÓRDENES (PAGINACIÓN)
+    // ========================================
+    async cargarMasOrdenes(esInicial = false) {
+      // Evitar cargas múltiples simultáneas
+      if (this.cargando || !this.hayMasOrdenes) {
+        return;
+      }
+
+      this.cargando = true;
+      this.mostrarIndicadorCarga(true);
+
       try {
         const API_BASE_URL = window.API_BASE_URL || 'https://backendtecnishop.onrender.com/api';
 
-        // Obtener las últimas 10 órdenes
-        const response = await fetch(`${API_BASE_URL}/ordenes/0/10`, {
+        console.log(`Cargando órdenes: offset=${this.offset}, limite=${this.limite}`);
+
+        const response = await fetch(`${API_BASE_URL}/ordenes/${this.offset}/${this.limite}`, {
           method: 'GET',
           headers: {
             "Content-Type": "application/json",
@@ -229,20 +265,35 @@
         }
 
         const responseData = await response.json();
-        console.log('Respuesta completa de la API:', responseData);
+        console.log('Respuesta de la API:', responseData);
 
-        // Extraer el array de órdenes según tu estructura específica
         const ordenesRecientes = responseData.ordenes || [];
+
+        // Si no hay órdenes o hay menos del límite, no hay más para cargar
+        if (ordenesRecientes.length === 0) {
+          this.hayMasOrdenes = false;
+          console.log('No hay más órdenes para cargar');
+          this.mostrarIndicadorCarga(false);
+          this.cargando = false;
+
+          // Si es la carga inicial y no hay órdenes, mostrar mensaje
+          if (esInicial) {
+            this.renderOrdenesRecientes([]);
+          }
+          return;
+        }
+
+        if (ordenesRecientes.length < this.limite) {
+          this.hayMasOrdenes = false;
+          console.log('Última página de órdenes cargada');
+        }
 
         // Transformar los datos al formato que necesita el frontend
         const ordenesTransformadas = await Promise.all(ordenesRecientes.map(async (orden) => {
-          // Extraer cliente info del equipo
           const equipo = orden.equipo || {};
           const observaciones = equipo.observaciones?.[0] || {};
           const problemas = equipo.problemas || [];
 
-
-          // Intentar obtener el nombre del cliente
           let clienteNombre = `Cliente ${equipo.cliente_ci}`;
           try {
             if (equipo.cliente_ci) {
@@ -257,17 +308,17 @@
 
           return {
             id: orden.id,
-            numero_orden: orden.numero_orden, // Usar parte del UUID como número
+            numero_orden: orden.numero_orden,
             cliente_nombre: clienteNombre,
             cliente_ci: equipo.cliente_ci || 'N/A',
-            cliente_telefono: '', // No disponible en la API de órdenes
-            cliente_correo: '', // No disponible en la API de órdenes
+            cliente_telefono: '',
+            cliente_correo: '',
             equipo_nombre: equipo.nombre || 'N/A',
             equipo_marca: equipo.marca || 'N/A',
             equipo_modelo: equipo.modelo || 'N/A',
             numero_serie: equipo.numero_serie || 'N/A',
             fecha: orden.fecha,
-            problemas: problemas.map(p => p.problema), // Array de strings
+            problemas: problemas.map(p => p.problema),
             realiza_orden: orden.realiza_orden || 'N/A',
             observaciones: {
               cargador: observaciones.cargador || false,
@@ -279,17 +330,192 @@
           };
         }));
 
-        localStorage.setItem("Ordenes", JSON.stringify(ordenesTransformadas));
-        console.log("ORDENES TRNASFORMADAS", localStorage.getItem("Ordenes"));
-        //console.log('Órdenes transformadas:', ordenesTransformadas);
-        this.renderOrdenesRecientes(ordenesTransformadas);
+        // DEDUPLICAR: Usar Set de IDs existentes para evitar duplicados
+        const idsExistentes = new Set(this.ordenesCache.map(o => o.id));
+        const ordenesNuevas = ordenesTransformadas.filter(orden => !idsExistentes.has(orden.id));
+
+        console.log(`Órdenes recibidas: ${ordenesTransformadas.length}, Nuevas (sin duplicados): ${ordenesNuevas.length}`);
+
+        // Si todas las órdenes ya existían, significa que no hay más nuevas
+        if (ordenesNuevas.length === 0 && ordenesTransformadas.length > 0) {
+          console.log('Todas las órdenes ya estaban cargadas, no hay más nuevas');
+          // No marcar hayMasOrdenes = false aquí, puede haber más después
+        }
+
+        // Hacer APPEND al cache local solo con órdenes que no existen
+        this.ordenesCache = [...this.ordenesCache, ...ordenesNuevas];
+
+        // Guardar en localStorage (sin duplicados)
+        localStorage.setItem("Ordenes", JSON.stringify(this.ordenesCache));
+        console.log(`Órdenes en localStorage: ${this.ordenesCache.length} total (sin duplicados)`);
+
+        // Renderizar: si es inicial, reemplazar; si no, hacer append al DOM solo con las nuevas
+        if (esInicial) {
+          this.renderOrdenesRecientes(ordenesNuevas.length > 0 ? ordenesNuevas : ordenesTransformadas);
+        } else {
+          // Solo agregar al DOM las órdenes que realmente son nuevas
+          if (ordenesNuevas.length > 0) {
+            this.appendOrdenesToDOM(ordenesNuevas);
+          }
+        }
+
+        // Actualizar offset para la siguiente carga
+        this.offset += this.limite;
 
       } catch (error) {
-        console.error('Error al cargar órdenes recientes:', error);
+        console.error('Error al cargar órdenes:', error);
 
-        // Mostrar datos de ejemplo si no hay conexión a la API
-        this.renderOrdenesRecientes([]);
+        if (esInicial) {
+          this.renderOrdenesRecientes([]);
+        }
+      } finally {
+        this.cargando = false;
+        this.mostrarIndicadorCarga(false);
       }
+    }
+
+    // ========================================
+    // CONFIGURAR SCROLL INFINITO
+    // ========================================
+    setupScrollInfinito() {
+      // Buscar el contenedor que tiene scroll (puede ser el content-area o el card)
+      const ordenesScreen = document.getElementById('ordenes');
+      if (!ordenesScreen) {
+        console.warn('No se encontró el contenedor de órdenes');
+        return;
+      }
+
+      // Buscar el elemento scrollable (puede ser el parent o el mismo)
+      let scrollContainer = ordenesScreen.closest('.main-content') ||
+        ordenesScreen.parentElement ||
+        ordenesScreen;
+
+      // Limpiar handler previo si existe
+      if (this.scrollHandler) {
+        scrollContainer.removeEventListener('scroll', this.scrollHandler);
+        window.removeEventListener('scroll', this.scrollHandler);
+      }
+
+      // Crear el handler de scroll
+      this.scrollHandler = () => {
+        // Solo procesar si estamos en la pantalla de órdenes
+        if (ordenesScreen.style.display === 'none') return;
+
+        const scrollTop = scrollContainer.scrollTop || window.scrollY;
+        const scrollHeight = scrollContainer.scrollHeight || document.documentElement.scrollHeight;
+        const clientHeight = scrollContainer.clientHeight || window.innerHeight;
+
+        // Verificar si estamos cerca del final (200px antes del final)
+        const distanciaAlFinal = scrollHeight - scrollTop - clientHeight;
+
+        if (distanciaAlFinal < 200 && this.hayMasOrdenes && !this.cargando) {
+          console.log('Scroll cerca del final, cargando más órdenes...');
+          this.cargarMasOrdenes(false);
+        }
+      };
+
+      // Agregar listener al contenedor scrollable
+      scrollContainer.addEventListener('scroll', this.scrollHandler);
+
+      // También escuchar scroll de window por si el scroll es del body
+      window.addEventListener('scroll', this.scrollHandler);
+
+      console.log('Scroll infinito configurado');
+    }
+
+    // ========================================
+    // MOSTRAR/OCULTAR INDICADOR DE CARGA
+    // ========================================
+    mostrarIndicadorCarga(mostrar) {
+      let indicador = document.getElementById('ordenes-loading-indicator');
+
+      if (mostrar) {
+        if (!indicador) {
+          const container = document.getElementById('ordenes-recientes-container');
+          if (container) {
+            indicador = document.createElement('div');
+            indicador.id = 'ordenes-loading-indicator';
+            indicador.className = 'ordenes-loading-indicator';
+            indicador.innerHTML = `
+              <div class="loading-spinner-small"></div>
+              <span>Cargando más órdenes...</span>
+            `;
+            container.appendChild(indicador);
+          }
+        }
+        if (indicador) indicador.style.display = 'flex';
+      } else {
+        if (indicador) indicador.style.display = 'none';
+      }
+    }
+
+    // ========================================
+    // APPEND ÓRDENES AL DOM (SIN REEMPLAZAR)
+    // ========================================
+    appendOrdenesToDOM(ordenes) {
+      const container = document.getElementById('ordenes-recientes-container');
+      if (!container) return;
+
+      let grid = container.querySelector('.ordenes-grid');
+      if (!grid) {
+        // Si no existe el grid, crear uno
+        grid = document.createElement('div');
+        grid.className = 'ordenes-grid';
+        container.innerHTML = '';
+        container.appendChild(grid);
+      }
+
+      // Agregar cada nueva orden al grid
+      ordenes.forEach(orden => {
+        if (!orden || typeof orden !== 'object') return;
+
+        const problemasTexto = Array.isArray(orden.problemas) ?
+          orden.problemas.join('\n') :
+          (orden.problemas || 'Sin problemas especificados');
+
+        const ordenCard = document.createElement('div');
+        ordenCard.className = 'orden-card';
+        ordenCard.setAttribute('data-orden-id', orden.id);
+        ordenCard.innerHTML = `
+          <div class="orden-header">
+            <div class="orden-numero">Orden #${orden.numero_orden}</div>
+            <div class="orden-fecha">${this.formatDate(orden.fecha)}</div>
+          </div>
+          <div class="orden-cliente">
+            <strong>${orden.cliente_nombre}</strong><br>
+            <small>CI: ${orden.cliente_ci}</small>
+          </div>
+          <div class="orden-equipo">
+            ${orden.equipo_nombre} ${orden.equipo_marca || ''} ${orden.equipo_modelo || ''}
+          </div>
+          <div class="orden-problema">
+            <small><strong>Problema:</strong> ${problemasTexto.substring(0, 50)}${problemasTexto.length > 50 ? '...' : ''}</small>
+          </div>
+          <div class="orden-actions">
+            <button class="btn-small btn-view" data-orden-id="${orden.id}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" width="12" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              Ver Reporte
+            </button>
+          </div>
+        `;
+
+        grid.appendChild(ordenCard);
+
+        // Agregar event listener al nuevo botón
+        const viewBtn = ordenCard.querySelector('.btn-view');
+        if (viewBtn) {
+          viewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.verOrdenPorId(orden.id);
+          });
+        }
+      });
+
+      console.log(`${ordenes.length} órdenes agregadas al DOM`);
     }
 
     // ========================================
@@ -859,6 +1085,25 @@
       if (toggleBtn && this.toggleHandler) {
         toggleBtn.removeEventListener('click', this.toggleHandler);
       }
+
+      // Limpiar scroll handlers
+      if (this.scrollHandler) {
+        const ordenesScreen = document.getElementById('ordenes');
+        if (ordenesScreen) {
+          const scrollContainer = ordenesScreen.closest('.main-content') ||
+            ordenesScreen.parentElement ||
+            ordenesScreen;
+          scrollContainer.removeEventListener('scroll', this.scrollHandler);
+        }
+        window.removeEventListener('scroll', this.scrollHandler);
+        this.scrollHandler = null;
+      }
+
+      // Resetear variables de scroll infinito
+      this.offset = 0;
+      this.cargando = false;
+      this.hayMasOrdenes = true;
+      this.ordenesCache = [];
 
       // Limpiar event listeners de las tarjetas de órdenes
       const viewButtons = document.querySelectorAll('.btn-view[data-orden-id]');

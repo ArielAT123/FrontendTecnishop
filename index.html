@@ -6,9 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tecnishop - Sistema de Gestión</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="./src/main/screens/themes.css">
   <link rel="stylesheet" href="./src/main/screens/ordenes.css">
   <link rel="stylesheet" href="./src/main/screens/reportes.css">
   <link rel="stylesheet" href="./src/main/screens/configuracion.css">
+
+  <!-- Script de carga inmediata del tema para evitar flash de estilos -->
+  <script>
+    (function () {
+      // Cargar tema guardado inmediatamente
+      var savedTheme = localStorage.getItem('tecnishop-theme') || 'blue-light';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
 </head>
 
 <body>
@@ -16,8 +26,8 @@
     <!-- Sidebar Menu -->
     <div class="sidebar" id="sidebar">
       <div class="logo">
-        <h1>Tecni<span>shop</span></h1>
-        <p>Sistema de Gestión</p>
+        <h1 class="logo-text">Tecni<span>shop</span></h1>
+        <p class="logo-text">Sistema de Gestión</p>
       </div>
 
       <div class="menu">

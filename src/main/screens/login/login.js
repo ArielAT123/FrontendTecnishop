@@ -12,6 +12,11 @@ let passwordInput;
 
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
+  // Cargar tema guardado
+  const savedTheme = localStorage.getItem('tecnishop-theme') || 'blue-light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  document.body.setAttribute('data-theme', savedTheme);
+
   // Obtener elementos
   loginForm = document.querySelector('.login-form');
   btnSubmit = document.querySelector('.btn-submit');
@@ -83,14 +88,14 @@ async function handleLogin(e) {
  */
 
 const ahora = Date.now();
-  const cincoHoras = 5 * 60 * 60 * 1000;
-  const horaExpiracion = ahora + cincoHoras;
+const cincoHoras = 5 * 60 * 60 * 1000;
+const horaExpiracion = ahora + cincoHoras;
 async function handleSuccessfulLogin(data) {
   try {
 
     // Guardar tokens y datos del usuario en localStorage
     localStorage.setItem('accessToken', data.tokens.access);
-    localStorage.setItem('refreshToken', data.tokens.refresh);  
+    localStorage.setItem('refreshToken', data.tokens.refresh);
     localStorage.setItem('userId', data.user.id);
     localStorage.setItem('username', data.user.username);
     localStorage.setItem('userEmail', data.user.email);
@@ -138,7 +143,7 @@ async function checkExistingSession() {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Token válido, redirigiendo al dashboard...');
-        
+
         // Token válido, ir directamente al dashboard
         ipcRenderer.send('login-success', data.user);
       } else {
@@ -166,7 +171,7 @@ function setLoadingState(loading) {
     btnSubmit.textContent = 'INICIAR SESIÓN';
     btnSubmit.style.opacity = '1';
     btnSubmit.style.cursor = 'pointer';
-    btnSubmit.style.background = 'linear-gradient(135deg, #35c3c1, #00d6b7)';
+    btnSubmit.style.background = '';  // Usar CSS
   }
 }
 
@@ -175,7 +180,7 @@ function setLoadingState(loading) {
  */
 function showError(message) {
   alert(message);
-  
+
   // Limpiar campos de contraseña por seguridad
   passwordInput.value = '';
   passwordInput.focus();

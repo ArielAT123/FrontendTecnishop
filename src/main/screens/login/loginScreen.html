@@ -7,6 +7,14 @@
     <title>Iniciar Sesión</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="login.css">
+
+    <!-- Script de carga inmediata del tema -->
+    <script>
+        (function () {
+            var savedTheme = localStorage.getItem('tecnishop-theme') || 'blue-light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 </head>
 
 <body>
@@ -14,7 +22,9 @@
         <div class="login-card">
             <div class="login-header">
                 <h1 class="login-title">Bienvenido</h1>
-                <h2><p class="login-subtitle">Tecnishop Admin</p></h2>
+                <h2>
+                    <p class="login-subtitle">Tecnishop Admin</p>
+                </h2>
             </div>
 
             <form class="login-form">
@@ -58,4 +68,5 @@
     </div>
 </body>
 <script src="login.js"></script>
+
 </html>

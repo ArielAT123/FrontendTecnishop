@@ -31,6 +31,7 @@ function createWindow() {
       enableRemoteModule: true,
     },
     icon: getIconPath(), // ✅ Funciona en desarrollo Y en el .exe empaquetado
+    // icon: "src/assets/tecnishopicon.ico"
   });
 
   // Cargar pantalla de login

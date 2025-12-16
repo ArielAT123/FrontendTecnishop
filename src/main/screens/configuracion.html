@@ -1,6 +1,118 @@
 <div id="configuracion" class="content-area">
   <div class="card">
     <h3>Configuración</h3>
-    <button id="log-out-button" class="btn btn-primary" type="button">CERRAR SESION</button>
+
+    <!-- Selector de Temas -->
+    <div class="theme-selector-section">
+      <h4 class="section-subtitle"> Apariencia del Sistema</h4>
+      <p class="section-description">Personaliza la apariencia de Tecnishop eligiendo tu tema preferido.</p>
+
+      <div class="theme-grid" id="theme-selector">
+        <!-- Azul Light -->
+        <div class="theme-option" data-theme="blue-light">
+          <div class="theme-preview blue-light-preview">
+            <div class="preview-sidebar"></div>
+            <div class="preview-content">
+              <div class="preview-header"></div>
+              <div class="preview-card"></div>
+            </div>
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">Azul Claro</span>
+            <span class="theme-tag">Clásico</span>
+          </div>
+          <div class="theme-check">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Azul Dark -->
+        <div class="theme-option" data-theme="blue-dark">
+          <div class="theme-preview blue-dark-preview">
+            <div class="preview-sidebar"></div>
+            <div class="preview-content">
+              <div class="preview-header"></div>
+              <div class="preview-card"></div>
+            </div>
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">Azul Oscuro</span>
+            <span class="theme-tag dark">Modo Noche</span>
+          </div>
+          <div class="theme-check">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Rojo Light -->
+        <div class="theme-option" data-theme="red-light">
+          <div class="theme-preview red-light-preview">
+            <div class="preview-sidebar"></div>
+            <div class="preview-content">
+              <div class="preview-header"></div>
+              <div class="preview-card"></div>
+            </div>
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">Rojo Carmesí</span>
+            <span class="theme-tag red">Tecnishop</span>
+          </div>
+          <div class="theme-check">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Rojo Dark -->
+        <div class="theme-option" data-theme="red-dark">
+          <div class="theme-preview red-dark-preview">
+            <div class="preview-sidebar"></div>
+            <div class="preview-content">
+              <div class="preview-header"></div>
+              <div class="preview-card"></div>
+            </div>
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">Rojo Oscuro</span>
+            <span class="theme-tag dark">Modo Noche</span>
+          </div>
+          <div class="theme-check">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="theme-status" id="theme-status">
+        <span class="status-icon">✓</span>
+        <span class="status-text">Tema actual: <strong id="current-theme-name">Rojo Carmesí</strong></span>
+      </div>
+    </div>
+
+    <hr class="config-divider">
+
+    <!-- Sección de Sesión -->
+    <div class="session-section">
+      <h4 class="section-subtitle"> Sesión</h4>
+      <p class="section-description">Gestiona tu sesión actual en el sistema.</p>
+      <button id="log-out-button" class="btn btn-danger" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+          width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+        </svg>
+        Cerrar Sesión
+      </button>
+    </div>
   </div>
 </div>

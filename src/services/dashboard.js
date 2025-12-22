@@ -193,18 +193,18 @@
         const ordenesCompletadas = ordenes.filter(orden => this.determinarEstado(orden) === 'Completado').length;
 
         return {
-          totalClientes: totalClientes || 152,
-          ordenesActivas: ordenesActivas || 89,
-          totalEquipos: totalEquipos || 324,
-          ordenesCompletadas: ordenesCompletadas || 1248,
+          totalClientes: totalClientes || "Cargando...",
+          ordenesActivas: ordenesActivas || "Cargando...",
+          totalEquipos: totalEquipos || "Cargando...",
+          ordenesCompletadas: ordenesCompletadas || "Cargando...",
         };
       } catch (error) {
         console.error('Error al obtener estadísticas:', error);
         return {
-          totalClientes: 152,
-          ordenesActivas: 89,
-          totalEquipos: 324,
-          ordenesCompletadas: 1248,
+          totalClientes: "Cargando...",
+          ordenesActivas: "Cargando...",
+          totalEquipos: "Cargando...",
+          ordenesCompletadas: "Cargando...",
         };
       }
     }

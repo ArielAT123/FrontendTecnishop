@@ -1,2 +1,8 @@
-node_modules
-dist
+node_modules/
+dist/
+dist-electron/
+release/
+.env
+.DS_Store
+*.log
+legacy_backup/

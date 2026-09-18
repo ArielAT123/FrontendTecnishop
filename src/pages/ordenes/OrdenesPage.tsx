@@ -25,6 +25,17 @@ import {
   CheckSquare,
   Hash,
   Loader2,
+  Table,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Layers,
+  FolderKanban,
+  Maximize2,
+  Minimize2,
+  Clock,
+  CheckCircle2,
+  Wrench,
 } from 'lucide-react';
 import { NavSection } from '../../components/layout/Sidebar';
 import { OrdenPrintModal } from '../../components/print/OrdenPrintModal';
@@ -40,6 +51,10 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [updatingOrderIds, setUpdatingOrderIds] = useState<string[]>([]);
+
+  // View Mode: 'tabla' (default) | 'clientes'
+  const [viewMode, setViewMode] = useState<'tabla' | 'clientes'>('tabla');
+  const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
 
   // Modals State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -258,29 +273,186 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
 
   const ordenes = ordenesData?.ordenes || [];
 
-  const filteredOrdenes = ordenes.filter((o) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      o.numero_orden?.toLowerCase().includes(term) ||
-      o.id?.toLowerCase().includes(term) ||
-      o.equipo?.nombre?.toLowerCase().includes(term) ||
-      o.equipo?.marca?.toLowerCase().includes(term) ||
-      o.equipo?.modelo?.toLowerCase().includes(term) ||
-      o.equipo?.cliente?.nombre?.toLowerCase().includes(term) ||
-      o.equipo?.cliente?.apellido?.toLowerCase().includes(term) ||
-      o.realiza_orden?.toLowerCase().includes(term);
+  // Helper to normalize text for search (ignoring accents, uppercase and whitespace)
+  const normalizeSearch = (text: string) =>
+    (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
-    const matchesStatus =
-      selectedStatus === 'ALL' || o.estado?.toUpperCase() === selectedStatus.toUpperCase();
+  // Helper to resolve equipment object for an order (nested or via cached equipos list)
+  const getOrdenEquipo = React.useCallback(
+    (o: Orden) => {
+      if (o.equipo && typeof o.equipo === 'object') return o.equipo;
+      return equipos.find((e) => String(e.id) === String(o.equipo));
+    },
+    [equipos]
+  );
 
-    return matchesSearch && matchesStatus;
-  });
+  // Helper to resolve client object for an order (nested in equipo or via cached clientes list)
+  const getOrdenCliente = React.useCallback(
+    (o: Orden) => {
+      const eq = getOrdenEquipo(o);
+      if (eq?.cliente) return eq.cliente;
+      const ci = eq?.cliente_ci;
+      if (!ci) return undefined;
+      return clientes.find((c) => String(c.ci).trim() === String(ci).trim());
+    },
+    [getOrdenEquipo, clientes]
+  );
+
+  // Space-enabled multi-token reactive search algorithm
+  const filteredOrdenes = React.useMemo(() => {
+    const rawTerm = searchTerm.trim();
+    const searchTokens = normalizeSearch(rawTerm)
+      .split(/\s+/)
+      .filter(Boolean);
+
+    return ordenes.filter((o) => {
+      // 1. Status Filter
+      const matchesStatus =
+        selectedStatus === 'ALL' || o.estado?.toUpperCase() === selectedStatus.toUpperCase();
+      if (!matchesStatus) return false;
+
+      // If no search term, pass through
+      if (searchTokens.length === 0) return true;
+
+      // 2. Resolve Equipment and Client Information
+      const eq = getOrdenEquipo(o);
+      const cli = getOrdenCliente(o);
+
+      const cliNombre = cli?.nombre || '';
+      const cliApellido = cli?.apellido || '';
+      const cliFullName = `${cliNombre} ${cliApellido}`.trim();
+      const cliInverseName = `${cliApellido} ${cliNombre}`.trim();
+
+      // 3. Assemble unified searchable blob
+      const searchableBlob = normalizeSearch(
+        [
+          o.numero_orden,
+          o.id,
+          eq?.nombre,
+          eq?.marca,
+          eq?.modelo,
+          eq?.numero_serie,
+          cliNombre,
+          cliApellido,
+          cliFullName,
+          cliInverseName,
+          cli?.ci,
+          cli?.telefono,
+          cli?.correo,
+          o.realiza_orden,
+          o.estado,
+          o.fecha,
+        ]
+          .filter(Boolean)
+          .join(' ')
+      );
+
+      // 4. Check that EVERY word/token entered matches somewhere in the order/client text
+      return searchTokens.every((token) => searchableBlob.includes(token));
+    });
+  }, [ordenes, searchTerm, selectedStatus, getOrdenEquipo, getOrdenCliente]);
+
+  // Group filtered orders by client for Client Grouped View
+  const groupedByClient = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        clientKey: string;
+        cliente: {
+          ci?: string;
+          nombre?: string;
+          apellido?: string;
+          telefono?: string;
+          correo?: string;
+        };
+        ordenes: Orden[];
+        counts: {
+          total: number;
+          pendientes: number;
+          enProceso: number;
+          completadas: number;
+          cobradas: number;
+          canceladas: number;
+        };
+      }
+    >();
+
+    filteredOrdenes.forEach((orden) => {
+      const eq = getOrdenEquipo(orden);
+      const cli = getOrdenCliente(orden);
+      const ci = cli?.ci
+        ? String(cli.ci).trim()
+        : eq?.cliente_ci
+        ? String(eq.cliente_ci).trim()
+        : '';
+      const fullName = `${cli?.nombre || ''} ${cli?.apellido || ''}`.trim();
+      const clientKey = ci || (fullName ? `name_${fullName.toLowerCase()}` : 'sin_cliente');
+
+      if (!map.has(clientKey)) {
+        map.set(clientKey, {
+          clientKey,
+          cliente: {
+            ci: ci || cli?.ci,
+            nombre: cli?.nombre || (ci ? `Cliente (CI: ${ci})` : 'Cliente Mostrador / Sin Asignar'),
+            apellido: cli?.apellido || '',
+            telefono: cli?.telefono || '',
+            correo: cli?.correo || '',
+          },
+          ordenes: [],
+          counts: {
+            total: 0,
+            pendientes: 0,
+            enProceso: 0,
+            completadas: 0,
+            cobradas: 0,
+            canceladas: 0,
+          },
+        });
+      }
+
+      const group = map.get(clientKey)!;
+      group.ordenes.push(orden);
+      group.counts.total += 1;
+
+      const st = (orden.estado || '').toUpperCase();
+      if (st === 'PENDIENTE') group.counts.pendientes += 1;
+      else if (st === 'EN_PROCESO') group.counts.enProceso += 1;
+      else if (st === 'COMPLETADO') group.counts.completadas += 1;
+      else if (st === 'COBRADO') group.counts.cobradas += 1;
+      else if (st === 'CANCELADO') group.counts.canceladas += 1;
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const aUrgent = a.counts.pendientes + a.counts.enProceso;
+      const bUrgent = b.counts.pendientes + b.counts.enProceso;
+      if (bUrgent !== aUrgent) return bUrgent - aUrgent;
+      return (a.cliente.nombre || '').localeCompare(b.cliente.nombre || '');
+    });
+  }, [filteredOrdenes, getOrdenEquipo, getOrdenCliente]);
+
+  const toggleClient = (clientKey: string) => {
+    setExpandedClients((prev) => ({
+      ...prev,
+      [clientKey]: prev[clientKey] === undefined ? false : !prev[clientKey],
+    }));
+  };
+
+  const toggleAllClients = (expand: boolean) => {
+    const next: Record<string, boolean> = {};
+    groupedByClient.forEach((g) => {
+      next[g.clientKey] = expand;
+    });
+    setExpandedClients(next);
+  };
 
   return (
     <div className="space-y-6 w-full animate-fadeIn">
       {/* Header Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <div className="w-full sm:w-72">
             <Input
               placeholder="Buscar orden, cliente o equipo..."
@@ -302,6 +474,39 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
             <option value="COBRADO">COBRADO</option>
             <option value="CANCELADO">CANCELADO</option>
           </select>
+
+          {/* Segmented View Mode Switcher */}
+          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/90 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setViewMode('tabla')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'tabla'
+                  ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm border border-slate-200/60 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Ver en formato tabla clásica"
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>Tabla Plana</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('clientes')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'clientes'
+                  ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm border border-slate-200/60 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Agrupar órdenes por cliente"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Por Clientes</span>
+              <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold">
+                {groupedByClient.length}
+              </span>
+            </button>
+          </div>
         </div>
 
         <Button
@@ -316,140 +521,388 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
         </Button>
       </div>
 
-      {/* Orders Table Card */}
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <ClipboardList className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>Órdenes de Servicio ({filteredOrdenes.length})</span>
-            {isSyncing && (
-              <span className="text-[10px] font-normal text-[#3498db] animate-pulse bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                Sincronizando en segundo plano...
-              </span>
-            )}
-          </h3>
-        </div>
-
-        {isLoading && filteredOrdenes.length === 0 ? (
-          <div className="py-16 text-center text-xs text-slate-400">Cargando órdenes de servicio...</div>
-        ) : filteredOrdenes.length === 0 ? (
-          <div className="py-16 text-center text-xs text-slate-400">
-            {searchTerm || selectedStatus !== 'ALL'
-              ? 'No se encontraron órdenes para este filtro.'
-              : 'No hay órdenes registradas aún.'}
+      {/* Orders View: Flat Table OR Grouped by Client */}
+      {viewMode === 'tabla' ? (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ClipboardList className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <span>Órdenes de Servicio ({filteredOrdenes.length})</span>
+              {isSyncing && (
+                <span className="text-[10px] font-normal text-[#3498db] animate-pulse bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
+                  Sincronizando en segundo plano...
+                </span>
+              )}
+            </h3>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-3 px-4 whitespace-nowrap min-w-[200px]">Nº Orden</th>
-                  <th className="py-3 px-3 whitespace-nowrap min-w-[110px]">Fecha</th>
-                  <th className="py-3 px-3 min-w-[170px]">Cliente</th>
-                  <th className="py-3 px-3 min-w-[180px]">Equipo</th>
-                  <th className="py-3 px-3 min-w-[140px]">Técnico Asignado</th>
-                  <th className="py-3 px-3 min-w-[160px]">Estado</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap min-w-[120px]">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                {filteredOrdenes.map((orden) => {
-                  const isBlocked = updatingOrderIds.includes(orden.id);
-                  const displayNumero =
-                    orden.numero_orden && orden.numero_orden !== 'ORD-2025'
-                      ? orden.numero_orden
-                      : orden.fecha
-                      ? `ORD-${orden.fecha}-${orden.id.slice(0, 4).toUpperCase()}`
-                      : orden.id.slice(0, 8);
 
-                  return (
-                    <tr key={orden.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap tracking-tight">
-                        {displayNumero}
-                      </td>
-                      <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">{orden.fecha}</td>
-                      <td className="py-3.5 px-3 text-slate-900 dark:text-slate-100 font-bold">
-                        {orden.equipo?.cliente?.nombre || 'Cliente'} {orden.equipo?.cliente?.apellido || ''}
-                      </td>
-                      <td className="py-3.5 px-3 text-slate-700 dark:text-slate-300">
-                        <span className="font-semibold">{orden.equipo?.marca || ''}</span>{' '}
-                        {orden.equipo?.modelo || orden.equipo?.nombre || 'Equipo'}
-                      </td>
-                      <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 font-medium">
-                        {orden.realiza_orden || 'Sin asignar'}
-                      </td>
-                      <td
-                        className={`py-3.5 px-3 transition-colors ${
-                          isBlocked
-                            ? 'bg-slate-200/80 dark:bg-slate-800/90 pointer-events-none select-none rounded-lg'
-                            : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={orden.estado}
-                            disabled={isBlocked}
-                            onChange={(e) =>
-                              updateStatusMutation.mutate({ ordenId: orden.id, status: e.target.value })
-                            }
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all ${
-                              isBlocked
-                                ? 'bg-slate-300/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-400/50 cursor-not-allowed shadow-none'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 cursor-pointer focus:outline-none text-slate-800 dark:text-slate-200 shadow-sm hover:border-slate-300'
-                            }`}
-                          >
-                            <option value="PENDIENTE">PENDIENTE</option>
-                            <option value="EN_PROCESO">EN PROCESO</option>
-                            <option value="COMPLETADO">COMPLETADO</option>
-                            <option value="COBRADO">COBRADO</option>
-                            <option value="CANCELADO">CANCELADO</option>
-                          </select>
-                          {isBlocked && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold animate-pulse">
-                              <Loader2 className="w-3 h-3 animate-spin text-slate-500" />
-                              <span className="hidden sm:inline">Guardando...</span>
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setPrintOrden(orden)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                            title="Imprimir Orden Oficial (A4 Dual)"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setViewingOrden(orden)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                            title="Ver Detalle"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          {onNavigate && (
-                            <button
-                              onClick={() => {
-                                if (onSelectOrderForReport) onSelectOrderForReport(orden);
-                                onNavigate('reportes');
-                              }}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                              title="Generar Reporte Técnico"
+          {isLoading && filteredOrdenes.length === 0 ? (
+            <div className="py-16 text-center text-xs text-slate-400">Cargando órdenes de servicio...</div>
+          ) : filteredOrdenes.length === 0 ? (
+            <div className="py-16 text-center text-xs text-slate-400">
+              {searchTerm || selectedStatus !== 'ALL'
+                ? 'No se encontraron órdenes para este filtro.'
+                : 'No hay órdenes registradas aún.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4 whitespace-nowrap min-w-[200px]">Nº Orden</th>
+                    <th className="py-3 px-3 whitespace-nowrap min-w-[110px]">Fecha</th>
+                    <th className="py-3 px-3 min-w-[170px]">Cliente</th>
+                    <th className="py-3 px-3 min-w-[180px]">Equipo</th>
+                    <th className="py-3 px-3 min-w-[140px]">Técnico Asignado</th>
+                    <th className="py-3 px-3 min-w-[160px]">Estado</th>
+                    <th className="py-3 px-4 text-right whitespace-nowrap min-w-[120px]">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                  {filteredOrdenes.map((orden) => {
+                    const isBlocked = updatingOrderIds.includes(orden.id);
+                    const displayNumero =
+                      orden.numero_orden && orden.numero_orden !== 'ORD-2025'
+                        ? orden.numero_orden
+                        : orden.fecha
+                        ? `ORD-${orden.fecha}-${orden.id.slice(0, 4).toUpperCase()}`
+                        : orden.id.slice(0, 8);
+
+                    const cli = getOrdenCliente(orden);
+                    const eq = getOrdenEquipo(orden);
+                    const clientName = cli
+                      ? `${cli.nombre} ${cli.apellido || ''}`.trim()
+                      : 'Cliente Mostrador';
+
+                    return (
+                      <tr key={orden.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap tracking-tight">
+                          {displayNumero}
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">{orden.fecha}</td>
+                        <td className="py-3.5 px-3 text-slate-900 dark:text-slate-100 font-bold">
+                          {clientName}
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-700 dark:text-slate-300">
+                          <span className="font-semibold">{eq?.marca || ''}</span>{' '}
+                          {eq?.modelo || eq?.nombre || 'Equipo'}
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 font-medium">
+                          {orden.realiza_orden || 'Sin asignar'}
+                        </td>
+                        <td
+                          className={`py-3.5 px-3 transition-colors ${
+                            isBlocked
+                              ? 'bg-slate-200/80 dark:bg-slate-800/90 pointer-events-none select-none rounded-lg'
+                              : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={orden.estado}
+                              disabled={isBlocked}
+                              onChange={(e) =>
+                                updateStatusMutation.mutate({ ordenId: orden.id, status: e.target.value })
+                              }
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all ${
+                                isBlocked
+                                  ? 'bg-slate-300/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-400/50 cursor-not-allowed shadow-none'
+                                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 cursor-pointer focus:outline-none text-slate-800 dark:text-slate-200 shadow-sm hover:border-slate-300'
+                              }`}
                             >
-                              <FileText className="w-4 h-4" />
+                              <option value="PENDIENTE">PENDIENTE</option>
+                              <option value="EN_PROCESO">EN PROCESO</option>
+                              <option value="COMPLETADO">COMPLETADO</option>
+                              <option value="COBRADO">COBRADO</option>
+                              <option value="CANCELADO">CANCELADO</option>
+                            </select>
+                            {isBlocked && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold animate-pulse">
+                                <Loader2 className="w-3 h-3 animate-spin text-slate-500" />
+                                <span className="hidden sm:inline">Guardando...</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setPrintOrden(orden)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                              title="Imprimir Orden Oficial (A4 Dual)"
+                            >
+                              <Printer className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={() => setViewingOrden(orden)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                              title="Ver Detalle"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {onNavigate && (
+                              <button
+                                onClick={() => {
+                                  if (onSelectOrderForReport) onSelectOrderForReport(orden);
+                                  onNavigate('reportes');
+                                }}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                title="Generar Reporte Técnico"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : (
+        /* Vista Agrupada por Clientes */
+        <div className="space-y-4">
+          {/* Client Group View Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800 dark:text-slate-100">{groupedByClient.length}</span>{' '}
+              {groupedByClient.length === 1 ? 'Cliente con' : 'Clientes con'}{' '}
+              <span className="font-bold text-slate-800 dark:text-slate-100">{filteredOrdenes.length}</span>{' '}
+              {filteredOrdenes.length === 1 ? 'orden' : 'órdenes'}
+              {isSyncing && (
+                <span className="text-[10px] font-normal text-[#3498db] animate-pulse bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800 ml-1">
+                  Sincronizando...
+                </span>
+              )}
+            </div>
+            {groupedByClient.length > 0 && (
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => toggleAllClients(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                  <span>Expandir Todos</span>
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => toggleAllClients(false)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:underline"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                  <span>Colapsar Todos</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isLoading && filteredOrdenes.length === 0 ? (
+            <Card className="p-12 text-center text-xs text-slate-400">Cargando clientes y órdenes...</Card>
+          ) : filteredOrdenes.length === 0 ? (
+            <Card className="p-12 text-center text-xs text-slate-400">
+              {searchTerm || selectedStatus !== 'ALL'
+                ? 'No se encontraron clientes ni órdenes para este filtro.'
+                : 'No hay órdenes registradas aún.'}
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {groupedByClient.map((group) => {
+                const isExpanded = expandedClients[group.clientKey] ?? true;
+                const initials = `${(group.cliente.nombre || '')[0] || 'C'}${(group.cliente.apellido || '')[0] || ''}`.toUpperCase();
+
+                return (
+                  <div
+                    key={group.clientKey}
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                  >
+                    {/* Header Bar (Clickable) */}
+                    <div
+                      onClick={() => toggleClient(group.clientKey)}
+                      className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer bg-gradient-to-r from-slate-50/70 via-white to-slate-50/40 dark:from-slate-850/80 dark:via-slate-900 dark:to-slate-850/80 hover:bg-slate-100/60 dark:hover:bg-slate-800/50 select-none transition-colors"
+                    >
+                      {/* Left: Avatar & Contact Info */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#3498db] to-[#2980b9] text-white flex items-center justify-center font-black text-sm shadow-md shadow-[#3498db]/20 shrink-0">
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                              {group.cliente.nombre} {group.cliente.apellido}
+                            </h4>
+                            {group.cliente.ci && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                CI: {group.cliente.ci}
+                              </span>
+                            )}
+                          </div>
+                          {group.cliente.telefono && (
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{group.cliente.telefono}</span>
+                            </div>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+                      </div>
+
+                      {/* Right: Badges & Chevron */}
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+                        <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold">
+                          {group.counts.total} {group.counts.total === 1 ? 'Orden' : 'Órdenes'}
+                        </span>
+
+                        {group.counts.pendientes > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold">
+                            <Clock className="w-3 h-3" />
+                            <span>{group.counts.pendientes} Pendiente{group.counts.pendientes > 1 ? 's' : ''}</span>
+                          </span>
+                        )}
+
+                        {group.counts.enProceso > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-600 dark:text-sky-400 text-[11px] font-bold">
+                            <Wrench className="w-3 h-3" />
+                            <span>{group.counts.enProceso} En Proceso</span>
+                          </span>
+                        )}
+
+                        {group.counts.completadas > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>{group.counts.completadas} Completada{group.counts.completadas > 1 ? 's' : ''}</span>
+                          </span>
+                        )}
+
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 ml-1">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Subtable of Client Orders */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 dark:border-slate-800 overflow-x-auto bg-slate-50/30 dark:bg-slate-900/30">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50/80 dark:bg-slate-850/60 border-b border-slate-200/70 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="py-2.5 px-4 whitespace-nowrap min-w-[190px]">Nº Orden</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap min-w-[100px]">Fecha</th>
+                              <th className="py-2.5 px-3 min-w-[180px]">Equipo / Modelo</th>
+                              <th className="py-2.5 px-3 min-w-[140px]">Técnico Asignado</th>
+                              <th className="py-2.5 px-3 min-w-[160px]">Estado</th>
+                              <th className="py-2.5 px-4 text-right whitespace-nowrap min-w-[110px]">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium bg-white dark:bg-slate-900">
+                            {group.ordenes.map((orden) => {
+                              const isBlocked = updatingOrderIds.includes(orden.id);
+                              const displayNumero =
+                                orden.numero_orden && orden.numero_orden !== 'ORD-2025'
+                                  ? orden.numero_orden
+                                  : orden.fecha
+                                  ? `ORD-${orden.fecha}-${orden.id.slice(0, 4).toUpperCase()}`
+                                  : orden.id.slice(0, 8);
+
+                              const eq = getOrdenEquipo(orden);
+
+                              return (
+                                <tr key={orden.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                  <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap tracking-tight">
+                                    {displayNumero}
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-600 dark:text-slate-400 whitespace-nowrap">{orden.fecha}</td>
+                                  <td className="py-3 px-3 text-slate-700 dark:text-slate-300">
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100">{eq?.marca || ''}</span>{' '}
+                                    {eq?.modelo || eq?.nombre || 'Equipo'}
+                                    {eq?.numero_serie && (
+                                      <span className="block text-[10px] text-slate-400 font-mono">S/N: {eq.numero_serie}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
+                                    {orden.realiza_orden || 'Sin asignar'}
+                                  </td>
+                                  <td
+                                    className={`py-3 px-3 transition-colors ${
+                                      isBlocked
+                                        ? 'bg-slate-200/80 dark:bg-slate-800/90 pointer-events-none select-none rounded-lg'
+                                        : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <select
+                                        value={orden.estado}
+                                        disabled={isBlocked}
+                                        onChange={(e) =>
+                                          updateStatusMutation.mutate({ ordenId: orden.id, status: e.target.value })
+                                        }
+                                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all ${
+                                          isBlocked
+                                            ? 'bg-slate-300/80 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-400/50 cursor-not-allowed shadow-none'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 cursor-pointer focus:outline-none text-slate-800 dark:text-slate-200 shadow-sm hover:border-slate-300'
+                                        }`}
+                                      >
+                                        <option value="PENDIENTE">PENDIENTE</option>
+                                        <option value="EN_PROCESO">EN PROCESO</option>
+                                        <option value="COMPLETADO">COMPLETADO</option>
+                                        <option value="COBRADO">COBRADO</option>
+                                        <option value="CANCELADO">CANCELADO</option>
+                                      </select>
+                                      {isBlocked && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-semibold animate-pulse">
+                                          <Loader2 className="w-3 h-3 animate-spin text-slate-500" />
+                                          <span className="hidden sm:inline">Guardando...</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <button
+                                        onClick={() => setPrintOrden(orden)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        title="Imprimir Orden Oficial (A4 Dual)"
+                                      >
+                                        <Printer className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => setViewingOrden(orden)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        title="Ver Detalle"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                      {onNavigate && (
+                                        <button
+                                          onClick={() => {
+                                            if (onSelectOrderForReport) onSelectOrderForReport(orden);
+                                            onNavigate('reportes');
+                                          }}
+                                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                          title="Generar Reporte Técnico"
+                                        >
+                                          <FileText className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal Crear Nueva Orden */}
       <Modal

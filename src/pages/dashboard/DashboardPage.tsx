@@ -40,10 +40,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-[#2c3e50] dark:bg-slate-850 border border-slate-700/50 p-6 sm:p-8 text-white shadow-md">
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold mb-3 text-slate-200">
-            <Sparkles className="w-3.5 h-3.5 text-blue-300" />
-            <span>Panel de Rendimiento Tecnishop</span>
-          </div>
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
             Control de Órdenes y Taller Técnico
           </h2>
@@ -146,8 +142,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     orden.numero_orden && orden.numero_orden !== 'ORD-2025'
                       ? orden.numero_orden
                       : orden.fecha
-                      ? `ORD-${orden.fecha}-${orden.id.slice(0, 4).toUpperCase()}`
-                      : orden.id.slice(0, 8);
+                        ? `ORD-${orden.fecha}-${orden.id.slice(0, 4).toUpperCase()}`
+                        : orden.id.slice(0, 8);
 
                   return (
                     <tr key={orden.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">

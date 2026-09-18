@@ -22,26 +22,6 @@ export default defineConfig({
           },
         },
       },
-      {
-        entry: 'electron/preload.ts',
-        onstart(options) {
-          options.reload();
-        },
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            emptyOutDir: false,
-            lib: {
-              entry: 'electron/preload.ts',
-              formats: ['cjs'],
-              fileName: () => 'preload.cjs',
-            },
-            rollupOptions: {
-              external: ['electron'],
-            },
-          },
-        },
-      },
     ]),
     renderer(),
   ],
@@ -53,5 +33,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/upcdatabase-proxy': {
+        target: 'https://api.upcdatabase.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/upcdatabase-proxy/, ''),
+      },
+    },
   },
 });

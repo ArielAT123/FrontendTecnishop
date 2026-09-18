@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ScannerProvider } from './context/ScannerContext';
 import { LoginPage } from './pages/login/LoginPage';
 import { Layout } from './components/layout/Layout';
 import { NavSection } from './components/layout/Sidebar';
@@ -54,7 +55,7 @@ const MainRouter: React.FC = () => {
           case 'dashboard':
             return <DashboardPage onNavigate={onNavigate} />;
           case 'ventas':
-            return <VentasPage />;
+            return <VentasPage onNavigate={onNavigate} />;
           case 'ordenes':
             return (
               <OrdenesPage
@@ -85,7 +86,9 @@ export const App: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <MainRouter />
+          <ScannerProvider>
+            <MainRouter />
+          </ScannerProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

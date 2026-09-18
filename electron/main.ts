@@ -21,7 +21,7 @@ function getIconPath(): string {
 function createWindow(): void {
   const preloadPath = fs.existsSync(path.join(__dirname, 'preload.cjs'))
     ? path.join(__dirname, 'preload.cjs')
-    : path.join(__dirname, 'preload.js');
+    : path.join(__dirname, '../electron/preload.cjs');
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -51,10 +51,22 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[RENDERER CONSOLE ${level}] (${sourceId}:${line}): ${message}`);
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[MAIN] Failed to load ${validatedURL}: [${errorCode}] ${errorDescription}`);
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
+
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on('closed', () => {
@@ -122,6 +134,14 @@ app.whenReady().then(() => {
     if (mainWindow) {
       mainWindow.setFullScreen(!mainWindow.isFullScreen());
     }
+  });
+
+  globalShortcut.register('F5', () => {
+    mainWindow?.webContents.reload();
+  });
+
+  globalShortcut.register('CommandOrControl+R', () => {
+    mainWindow?.webContents.reload();
   });
 
   app.on('activate', () => {

@@ -1,17 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-interface ElectronAPI {
-  getVersion: () => Promise<string>;
-  minimizeWindow: () => Promise<void>;
-  maximizeWindow: () => Promise<void>;
-  closeWindow: () => Promise<void>;
-  toggleFullScreen: () => Promise<boolean>;
-  isFullScreen: () => Promise<boolean>;
-  isMaximized: () => Promise<boolean>;
-  printDocument: (options?: any) => Promise<boolean>;
-}
-
-const electronAPI: ElectronAPI = {
+const electronAPI = {
   getVersion: () => ipcRenderer.invoke('app:get-version'),
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),

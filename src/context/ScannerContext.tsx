@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { scannerSubject } from '../services/scannerObserver';
+import { scannerSubject, BarcodeScanEvent } from '../services/scannerObserver';
 
 export type ScannerMode = 'usb' | 'web';
 
@@ -21,6 +21,9 @@ export interface ScannerContextType {
   isCheckingServer: boolean;
   serverInfo: ServerInfo | null;
   checkServerStatus: () => Promise<boolean>;
+  getQrUrl: (preferHttps?: boolean) => string;
+  lastScan: BarcodeScanEvent | null;
+  recentScans: BarcodeScanEvent[];
 }
 
 const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
@@ -28,7 +31,7 @@ const ScannerContext = createContext<ScannerContextType | undefined>(undefined);
 export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [scannerMode, setScannerModeState] = useState<ScannerMode>(() => {
     const saved = localStorage.getItem('scanner_mode');
-    return (saved === 'web' || saved === 'usb') ? saved : 'usb';
+    return saved === 'web' || saved === 'usb' ? saved : 'usb';
   });
 
   const [serverUrl, setServerUrlState] = useState<string>(() => {
@@ -38,17 +41,18 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isServerOnline, setIsServerOnline] = useState<boolean>(false);
   const [isCheckingServer, setIsCheckingServer] = useState<boolean>(false);
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [lastScan, setLastScan] = useState<BarcodeScanEvent | null>(null);
+  const [recentScans, setRecentScans] = useState<BarcodeScanEvent[]>([]);
 
   // Check connectivity to scanner-web server
   const checkServerStatus = useCallback(async (): Promise<boolean> => {
     setIsCheckingServer(true);
     try {
-      // Clean base url
       const base = serverUrl.replace(/\/+$/, '');
       const response = await fetch(`${base}/api/info`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(3500),
+        signal: AbortSignal.timeout(3000),
       });
 
       if (response.ok) {
@@ -68,7 +72,6 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return false;
       }
     } catch {
-      // If localhost failed, try checking local network IP if known
       setIsServerOnline(false);
       return false;
     } finally {
@@ -85,7 +88,7 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       scannerSubject.setEnabled(true);
       scannerSubject.connect(serverUrl);
     } else {
-      // In USB mode, disable web SSE listeners to prevent accidental network scans
+      // In USB mode, disable web SSE listeners to prevent cross-channel conflicts
       scannerSubject.setEnabled(false);
     }
   }, [serverUrl]);
@@ -101,9 +104,35 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [scannerMode]);
 
+  // Generates safe QR URL embedding the session JWT token
+  const getQrUrl = useCallback((preferHttps = true): string => {
+    const token = localStorage.getItem('accessToken') || '';
+    const ip = serverInfo?.ip || '127.0.0.1';
+    const port = preferHttps ? (serverInfo?.portHttps || 5051) : (serverInfo?.port || 5050);
+    const protocol = preferHttps ? 'https' : 'http';
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${protocol}://${ip}:${port}/${tokenQuery}`;
+  }, [serverInfo]);
+
+  // Global scan listener when in web mode
+  useEffect(() => {
+    const unsubscribe = scannerSubject.subscribe({
+      onBarcodeScanned: (event) => {
+        setLastScan(event);
+        setRecentScans((prev) => [event, ...prev.slice(0, 9)]);
+      },
+      onConnectionChange: (connected) => {
+        if (connected) setIsServerOnline(true);
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Initial synchronization on mount
   useEffect(() => {
-    // Synchronize scannerSubject with the saved mode
     if (scannerMode === 'web') {
       scannerSubject.setEnabled(true);
       scannerSubject.connect(serverUrl);
@@ -111,13 +140,11 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
       scannerSubject.setEnabled(false);
     }
 
-    // Check server info
     checkServerStatus();
 
-    // Periodic check every 20 seconds
     const interval = setInterval(() => {
       checkServerStatus();
-    }, 20000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [scannerMode, serverUrl, checkServerStatus]);
@@ -133,6 +160,9 @@ export const ScannerProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isCheckingServer,
         serverInfo,
         checkServerStatus,
+        getQrUrl,
+        lastScan,
+        recentScans,
       }}
     >
       {children}

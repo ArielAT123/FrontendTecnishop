@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, X, FileText } from 'lucide-react';
+import { Printer, X, FileText, Scissors } from 'lucide-react';
 import { Orden } from '../../types';
 import { Button } from '../ui/Button';
 
@@ -38,9 +38,13 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
   const equipoModelo = equipo?.modelo || 'N/A';
   const equipoSerie = equipo?.numero_serie || 'S/N';
 
-  // Observaciones & accessories
-  const obs = Array.isArray(equipo?.observaciones) && equipo.observaciones.length > 0
-    ? equipo.observaciones[0]
+  // Observaciones & accessories: prioritize orden.observaciones, fallback to equipo.observaciones
+  const ordenObsList = (orden as any)?.observaciones;
+  const equipoObsList = equipo?.observaciones;
+  const obs = Array.isArray(ordenObsList) && ordenObsList.length > 0
+    ? ordenObsList[0]
+    : Array.isArray(equipoObsList) && equipoObsList.length > 0
+    ? equipoObsList[0]
     : null;
 
   const cargador = obs?.cargador ? 'SÍ' : 'NO';
@@ -49,14 +53,20 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
   const cableDatos = obs?.cable_datos ? 'SÍ' : 'NO';
   const otrosObs = obs?.otros || 'Ninguna observación adicional reportada.';
 
-  // Problemas reportados
+  // Problemas reportados: prioritize orden.problemas, fallback to equipo.problemas
   const problemasList: string[] = [];
-  if (Array.isArray(equipo?.problemas)) {
-    equipo.problemas.forEach((p: any) => {
-      if (typeof p === 'string') problemasList.push(p);
-      else if (p?.problema) problemasList.push(p.problema);
-    });
-  }
+  const ordenProbs = (orden as any)?.problemas;
+  const equipoProbs = equipo?.problemas;
+  const sourceProbs = Array.isArray(ordenProbs) && ordenProbs.length > 0
+    ? ordenProbs
+    : Array.isArray(equipoProbs)
+    ? equipoProbs
+    : [];
+
+  sourceProbs.forEach((p: any) => {
+    if (typeof p === 'string') problemasList.push(p);
+    else if (p?.problema) problemasList.push(p.problema);
+  });
 
   const numeroOrden = orden.numero_orden || (typeof orden.id === 'string' ? orden.id.substring(0, 8).toUpperCase() : 'ORD-000');
   const fechaOrden = orden.fecha || new Date().toISOString().split('T')[0];
@@ -220,8 +230,8 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
             {/* Scissor Divider */}
             <div className="py-2 flex items-center justify-center text-slate-500 text-[8px] font-mono select-none">
               <span className="border-b border-dashed border-slate-400 flex-1" />
-              <span className="px-3 flex items-center gap-1">
-                <span>✂</span> LÍNEA DE CORTE <span>✂</span>
+              <span className="px-3 flex items-center gap-1.5">
+                <Scissors className="w-2.5 h-2.5" /> LÍNEA DE CORTE <Scissors className="w-2.5 h-2.5" />
               </span>
               <span className="border-b border-dashed border-slate-400 flex-1" />
             </div>

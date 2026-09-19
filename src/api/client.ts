@@ -158,17 +158,60 @@ export const api = {
     const { data } = await apiClient.post<Equipo>('/equipos/crear/', equipo);
     return data;
   },
+  deleteEquipo: async (id: string): Promise<void> => {
+    await apiClient.delete(`/equipos/${id}/`);
+  },
   createObservaciones: async (equipoId: string, obs: any) => {
-    const { data } = await apiClient.post(`/equipos/${equipoId}/observaciones/crear/`, obs);
+    const { data } = await apiClient.post(`/equipos/${equipoId}/observaciones/crear/`, {
+      equipo: equipoId,
+      ...obs,
+    });
     return data;
   },
-  createProblema: async (equipoId: string, problema: { problema: string }) => {
-    const { data } = await apiClient.post(`/equipos/${equipoId}/problemas/crear/`, problema);
+  createProblema: async (equipoId: string, problema: { problema: string; equipo?: string }) => {
+    const { data } = await apiClient.post(`/equipos/${equipoId}/problemas/crear/`, {
+      equipo: equipoId,
+      ...problema,
+    });
     return data;
   },
   getEquipoCompleto: async (id: string): Promise<Equipo> => {
     const { data } = await apiClient.get<Equipo>(`/equipos/${id}/completo/`);
     return data;
+  },
+  getUniqueTiposEquipo: async (): Promise<{ tipo: string; total: number }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; tipos: { tipo: string; total: number }[] }>('/equipos/tipos/');
+    return data.tipos || [];
+  },
+  getAutocompleteTiposEquipo: async (q: string): Promise<{ texto: string; frecuencia: number }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; sugerencias: { texto: string; frecuencia: number }[] }>('/equipos/autocomplete/tipos/', {
+      params: { q },
+    });
+    return data.sugerencias || [];
+  },
+  getAutocompleteMarcasEquipo: async (q: string): Promise<{ texto: string; frecuencia: number }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; sugerencias: { texto: string; frecuencia: number }[] }>('/equipos/autocomplete/marcas/', {
+      params: { q },
+    });
+    return data.sugerencias || [];
+  },
+  getCatalogoTipos: async (q = ''): Promise<{ tipo: string; total: number; marcas_count?: number }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; tipos: { tipo: string; total: number; marcas_count?: number }[] }>('/equipos/catalogo/tipos/', {
+      params: { q },
+    });
+    return data.tipos || [];
+  },
+  getCatalogoMarcas: async (tipo = '', q = ''): Promise<{ texto: string; frecuencia: number }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; marcas: { texto: string; frecuencia: number }[] }>('/equipos/catalogo/marcas/', {
+      params: { tipo, q },
+    });
+    return data.marcas || [];
+  },
+  getCatalogoModelos: async (tipo = '', marca = '', q = ''): Promise<{ texto: string; frecuencia: number; marca: string; tipo: string }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; modelos: { texto: string; frecuencia: number; marca: string; tipo: string }[] }>('/equipos/catalogo/modelos/', {
+      params: { tipo, marca, q },
+    });
+    return data.modelos || [];
   },
 
   // Ordenes
@@ -176,13 +219,24 @@ export const api = {
     const { data } = await apiClient.get<OrdenesPaginadasResponse>(`/ordenes/${inicio}/${fin}`);
     return data;
   },
-  createOrden: async (orden: Partial<Orden>): Promise<Orden> => {
+  createOrden: async (orden: Partial<Orden> & {
+    cargador?: boolean;
+    bateria?: boolean;
+    cable_poder?: boolean;
+    cable_datos?: boolean;
+    otros?: string;
+    problema?: string;
+  }): Promise<Orden> => {
     const { data } = await apiClient.post<Orden>('/ordenes/crear/', orden);
     return data;
   },
   updateOrdenStatus: async (ordenId: string, status: string): Promise<boolean> => {
     const { data } = await apiClient.put(`/ordenes/${ordenId}/status/`, { status });
     return data.success;
+  },
+  getEstadosOrden: async (): Promise<{ id: string; nombre: string }[]> => {
+    const { data } = await apiClient.get<{ success: boolean; estados: { id: string; nombre: string }[] }>('/ordenes/estados/');
+    return data.estados || [];
   },
   getOrdenDetail: async (id: string): Promise<Orden> => {
     const { data } = await apiClient.get<Orden>(`/ordenes/${id}/`);
@@ -228,6 +282,14 @@ export const api = {
   getReporteByOrderId: async (ordenId: string): Promise<Reporte> => {
     const { data } = await apiClient.get<{ success: boolean; data: Reporte }>(`/reportes/orden/${ordenId}/`);
     return data.data;
+  },
+  getAutocompleteManoObra: async (query: string): Promise<Array<{ texto: string; precio: number; frecuencia: number }>> => {
+    const { data } = await apiClient.get<{ success: boolean; data: any[] }>(`/reportes/autocomplete/mano-obra/?q=${encodeURIComponent(query)}`);
+    return data.data || [];
+  },
+  getAutocompleteRepuestos: async (query: string): Promise<Array<{ texto: string; precio: number; frecuencia: number }>> => {
+    const { data } = await apiClient.get<{ success: boolean; data: any[] }>(`/reportes/autocomplete/repuestos/?q=${encodeURIComponent(query)}`);
+    return data.data || [];
   },
 
   // Ventas y POS

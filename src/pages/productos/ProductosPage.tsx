@@ -7,12 +7,13 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { QRCodeSVG } from 'qrcode.react';
+import { useScannerConfig } from '../../context/ScannerContext';
 import {
   lookupProductByBarcode,
   playScannerBeep,
   sanitizeBarcode,
 } from '../../services/productLookupService';
+import { getProductPrice } from '../../utils/productUtils';
 import { scannerSubject, BarcodeScanEvent } from '../../services/scannerObserver';
 import {
   Package,
@@ -27,19 +28,26 @@ import {
   Keyboard,
   Smartphone,
   Sparkles,
-  Globe,
-  Wifi,
-  Copy,
-  Check,
   RefreshCw,
   Zap,
   TrendingUp,
+  Clock,
+  Wrench,
+  Settings,
 } from 'lucide-react';
 
-export const ProductosPage: React.FC = () => {
+export interface ProductosPageProps {
+  activeTipo?: 'PRODUCTO' | 'SERVICIO';
+  onNavigate?: (section: any) => void;
+}
+
+export const ProductosPage: React.FC<ProductosPageProps> = ({
+  activeTipo = 'PRODUCTO',
+  onNavigate,
+}) => {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const isService = activeTipo === 'SERVICIO';
+  const { scannerMode: globalScannerMode, isServerOnline } = useScannerConfig();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,33 +57,33 @@ export const ProductosPage: React.FC = () => {
   } | null>(null);
 
   // Scanner & Mode State
-  const [scanMode, setScanMode] = useState<'manual' | 'pistola' | 'celular'>('pistola');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [scanMode, setScanMode] = useState<'manual' | 'pistola'>('manual');
   const [pistolaInput, setPistolaInput] = useState('');
   const [isSearchingWorldwide, setIsSearchingWorldwide] = useState(false);
   const [lookupFeedback, setLookupFeedback] = useState<{
-    type: 'success' | 'info' | 'error';
-    message: string;
+    found?: boolean;
+    type?: 'success' | 'info' | 'error';
     source?: string;
+    productName?: string;
+    message?: string;
     imageUrl?: string;
   } | null>(null);
 
-  // Mobile Scanner Server State
-  const [serverUrl, setServerUrl] = useState('https://192.168.18.55:5051');
-  const [httpUrl, setHttpUrl] = useState('http://192.168.18.55:5050');
-  const [httpsUrl, setHttpsUrl] = useState('https://192.168.18.55:5051');
-  const [useHttps, setUseHttps] = useState(true);
-  const [isServerActive, setIsServerActive] = useState(false);
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
-  const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Producto>>({
     codigo: '',
     nombre: '',
-    cantidad: 0,
+    cantidad: isService ? 9999 : 0,
     costo_compra: 0,
     precio_venta_sugerido: 0,
     precio_venta_recomendado: 0,
+    impuesto: 15,
+    tipo: activeTipo,
+    tiempo_estimado_minutos: isService ? 60 : 0,
   });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -85,25 +93,6 @@ export const ProductosPage: React.FC = () => {
     keyField: 'codigo',
   });
 
-  // Check mobile scanner server info on mount or modal open
-  useEffect(() => {
-    if (!isModalOpen) return;
-
-    fetch('http://localhost:5050/api/info')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          if (data.url) setHttpUrl(data.url);
-          if (data.httpsUrl) setHttpsUrl(data.httpsUrl);
-          setServerUrl(data.httpsUrl || data.url);
-          setIsServerActive(true);
-        }
-      })
-      .catch(() => {
-        setIsServerActive(false);
-      });
-  }, [isModalOpen]);
-
   // PATRÓN DE DISEÑO OBSERVER: Suscribir este componente como Observador al ScannerSubject
   useEffect(() => {
     if (!isModalOpen) return;
@@ -112,9 +101,6 @@ export const ProductosPage: React.FC = () => {
       onBarcodeScanned: (event: BarcodeScanEvent) => {
         handleBarcodeReceived(event.barcode, 'celular');
       },
-      onConnectionChange: (connected: boolean) => {
-        setIsServerActive(connected);
-      },
     });
 
     return () => {
@@ -122,7 +108,7 @@ export const ProductosPage: React.FC = () => {
     };
   }, [isModalOpen, productos]);
 
-  // Handle Barcode Search & Auto-Fill
+  // Handle Barcode Search & Auto-Fillll
   const handleBarcodeReceived = async (code: string, sourceOrigin: 'pistola' | 'celular' | 'manual') => {
     const clean = sanitizeBarcode(code);
     if (!clean) return;
@@ -140,13 +126,17 @@ export const ProductosPage: React.FC = () => {
       const result = await lookupProductByBarcode(clean, productos);
 
       if (result.found && result.nombre) {
-        setFormData((prev) => ({
-          ...prev,
-          codigo: clean,
-          nombre: result.nombre,
-          costo_compra: result.costo_compra ?? prev.costo_compra,
-          precio_venta_sugerido: result.precio_venta_sugerido ?? prev.precio_venta_sugerido,
-        }));
+        setFormData((prev) => {
+          const resolvedPvp = result.precio_venta_sugerido ?? prev.precio_venta_sugerido ?? 0;
+          return {
+            ...prev,
+            codigo: clean,
+            nombre: result.nombre,
+            costo_compra: result.costo_compra ?? prev.costo_compra,
+            precio_venta_sugerido: resolvedPvp,
+            precio_venta_recomendado: resolvedPvp,
+          };
+        });
 
         let sourceLabel = 'Catálogo Mundial';
         if (result.source === 'upcdatabase') sourceLabel = 'UPC Database (API Oficial)';
@@ -223,7 +213,17 @@ export const ProductosPage: React.FC = () => {
       resetForm();
     },
     onError: (err: any) => {
-      setFormError(err.message || 'Error al guardar el producto');
+      const respData = err?.response?.data;
+      let msg = 'Error al guardar el producto';
+      if (respData && typeof respData === 'object') {
+        const errors = Object.entries(respData)
+          .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(', ') : val}`)
+          .join(' | ');
+        if (errors) msg = errors;
+      } else if (err.message) {
+        msg = err.message;
+      }
+      setFormError(msg);
     },
   });
 
@@ -244,14 +244,27 @@ export const ProductosPage: React.FC = () => {
     },
   });
 
+  const formatMinutes = (minutes?: number) => {
+    const m = Number(minutes) || 0;
+    if (m <= 0) return 'Inmediato';
+    const hrs = Math.floor(m / 60);
+    const rem = m % 60;
+    if (hrs > 0 && rem > 0) return `${hrs}h ${rem}m (${m} min)`;
+    if (hrs > 0) return `${hrs}h (${m} min)`;
+    return `${m} min`;
+  };
+
   const resetForm = () => {
     setFormData({
       codigo: '',
       nombre: '',
-      cantidad: 0,
+      cantidad: isService ? 9999 : 0,
       costo_compra: 0,
       precio_venta_sugerido: 0,
       precio_venta_recomendado: 0,
+      impuesto: 15,
+      tipo: activeTipo,
+      tiempo_estimado_minutos: isService ? 60 : 0,
     });
     setFormError(null);
     setLookupFeedback(null);
@@ -270,16 +283,17 @@ export const ProductosPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.codigo?.trim() || !formData.nombre?.trim()) {
-      setFormError('El código y el nombre del producto son obligatorios');
+      setFormError(`El código y el nombre del ${isService ? 'servicio' : 'producto'} son obligatorios`);
       return;
     }
-    createMutation.mutate(formData);
-  };
-
-  const handleCopyUrl = () => {
-    navigator.clipboard.writeText(serverUrl);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
+    const pvp = Number(formData.precio_venta_sugerido || formData.precio_venta_recomendado || 0);
+    createMutation.mutate({
+      ...formData,
+      tipo: activeTipo,
+      cantidad: isService ? 9999 : formData.cantidad,
+      precio_venta_sugerido: pvp,
+      precio_venta_recomendado: pvp,
+    });
   };
 
   // Profit margin calculation
@@ -289,6 +303,10 @@ export const ProductosPage: React.FC = () => {
   const margenPorcentaje = pvp > 0 ? ((ganancia / pvp) * 100).toFixed(1) : '0.0';
 
   const filteredProductos = productos.filter((p) => {
+    const itemTipo = p.tipo || 'PRODUCTO';
+    if (isService && itemTipo !== 'SERVICIO') return false;
+    if (!isService && itemTipo === 'SERVICIO') return false;
+
     const term = searchTerm.toLowerCase();
     return (
       p.codigo?.toLowerCase().includes(term) ||
@@ -303,7 +321,7 @@ export const ProductosPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="w-full sm:w-80">
           <Input
-            placeholder="Buscar por código o nombre..."
+            placeholder={`Buscar ${isService ? 'servicio por nombre o código' : 'producto por código o nombre'}...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             leftIcon={<Search className="w-4 h-4" />}
@@ -311,35 +329,63 @@ export const ProductosPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".xlsx, .xls"
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            leftIcon={<Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-            onClick={() => fileInputRef.current?.click()}
-            isLoading={excelMutation.isPending}
-            className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-          >
-            Importar Excel
-          </Button>
+          {!isService && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".xlsx, .xls"
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                leftIcon={<Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                onClick={() => fileInputRef.current?.click()}
+                isLoading={excelMutation.isPending}
+                className="border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+              >
+                Importar Excel
+              </Button>
+            </>
+          )}
 
           <Button
-            leftIcon={<PlusCircle className="w-4 h-4" />}
+            leftIcon={isService ? <Wrench className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
             onClick={() => {
               resetForm();
               setIsModalOpen(true);
             }}
             className="shadow-sm"
           >
-            Nuevo Producto
+            {isService ? 'Nuevo Servicio' : 'Nuevo Producto'}
           </Button>
         </div>
       </div>
+
+      {/* Scanner Offline Alert Banner */}
+      {!isService && globalScannerMode === 'web' && !isServerOnline && (
+        <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-fadeIn">
+          <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+              <p className="font-bold">Sin conexión con el escáner web</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                El escáner de códigos de barra está configurado en modo WiFi/Web pero el servicio no responde.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onNavigate?.('configuracion')}
+            className="text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 shrink-0 flex items-center gap-1.5"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Configurar Escáner</span>
+          </Button>
+        </div>
+      )}
 
       {/* Upload Notification Banner */}
       {uploadStatus && (
@@ -370,9 +416,16 @@ export const ProductosPage: React.FC = () => {
       {/* Products Table Card */}
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Package className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+          {isService ? (
+            <Clock className="w-5 h-5 text-amber-500" />
+          ) : (
+            <Package className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+          )}
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>Inventario ({filteredProductos.length} artículos)</span>
+            <span>
+              {isService ? 'Servicios de Taller & Mano de Obra' : 'Inventario de Repuestos'} ({filteredProductos.length}{' '}
+              {isService ? 'servicios' : 'artículos'})
+            </span>
             {isSyncing && (
               <span className="text-[10px] font-normal text-[#3498db] animate-pulse bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
                 Sincronizando en segundo plano...
@@ -382,10 +435,14 @@ export const ProductosPage: React.FC = () => {
         </div>
 
         {isLoading && filteredProductos.length === 0 ? (
-          <div className="py-16 text-center text-xs text-slate-400">Cargando inventario...</div>
+          <div className="py-16 text-center text-xs text-slate-400">
+            {isService ? 'Cargando servicios técnicos...' : 'Cargando inventario...'}
+          </div>
         ) : filteredProductos.length === 0 ? (
           <div className="py-16 text-center text-xs text-slate-400">
-            {searchTerm ? 'No se encontraron productos coincidentes.' : 'El catálogo está vacío.'}
+            {searchTerm
+              ? `No se encontraron ${isService ? 'servicios' : 'productos'} coincidentes.`
+              : `No hay ${isService ? 'servicios de taller' : 'productos'} registrados aún.`}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -393,11 +450,10 @@ export const ProductosPage: React.FC = () => {
               <thead className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
                 <tr>
                   <th className="pb-3 pl-2">Código</th>
-                  <th className="pb-3">Descripción / Artículo</th>
-                  <th className="pb-3 text-center">Stock</th>
-                  <th className="pb-3 text-right">Costo</th>
-                  <th className="pb-3 text-right">PVP Sugerido</th>
-                  <th className="pb-3 pr-2 text-right">PVP Recomendado</th>
+                  <th className="pb-3">{isService ? 'Servicio / Mano de Obra' : 'Descripción / Artículo'}</th>
+                  <th className="pb-3 text-center">{isService ? 'Tiempo Estimado' : 'Stock'}</th>
+                  <th className="pb-3 text-right">{isService ? 'Costo Mano de Obra' : 'Costo'}</th>
+                  <th className="pb-3 pr-2 text-right">{isService ? 'Tarifa al Cliente' : 'PVP (Precio de Venta)'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
@@ -408,28 +464,37 @@ export const ProductosPage: React.FC = () => {
                     </td>
                     <td className="py-3 text-slate-900 dark:text-slate-100 font-semibold">
                       {prod.nombre}
+                      {prod.descripcion && (
+                        <span className="block text-[11px] font-normal text-slate-500 dark:text-slate-400 line-clamp-1">
+                          {prod.descripcion}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 text-center">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-                          prod.cantidad > 5
-                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                            : prod.cantidad > 0
-                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-                        }`}
-                      >
-                        {prod.cantidad} uds
-                      </span>
+                      {isService ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <Clock className="w-3.5 h-3.5" />
+                          {formatMinutes(prod.tiempo_estimado_minutos)}
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                            prod.cantidad > 5
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : prod.cantidad > 0
+                              ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                          }`}
+                        >
+                          {prod.cantidad} uds
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 text-right font-mono text-slate-600 dark:text-slate-400">
                       ${Number(prod.costo_compra || 0).toFixed(2)}
                     </td>
-                    <td className="py-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
-                      ${Number(prod.precio_venta_sugerido || 0).toFixed(2)}
-                    </td>
                     <td className="py-3 pr-2 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                      ${Number(prod.precio_venta_recomendado || prod.precio_venta_sugerido || 0).toFixed(2)}
+                      ${getProductPrice(prod).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -439,196 +504,116 @@ export const ProductosPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Modal Crear Producto - AMPLIADO A 2XL CON ACCIONABLE DE ESCÁNER */}
+      {/* Modal Crear Producto / Servicio - AMPLIADO A 2XL */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Registrar Artículo en Inventario"
+        title={isService ? 'Registrar Servicio de Taller / Mano de Obra' : 'Registrar Artículo en Inventario'}
         maxWidth="2xl"
       >
         <div className="space-y-4">
           {/* ACCIONABLE PERSONALIZADO ARRIBA / ABAJO DEL TÍTULO: SELECTOR DE MODO DE ESCÁNER */}
-          <div className="bg-slate-100 dark:bg-slate-800/70 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shadow-inner">
-            <button
-              type="button"
-              onClick={() => {
-                setScanMode('manual');
-                setLookupFeedback(null);
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                scanMode === 'manual'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Keyboard className="w-4 h-4" />
-              <span>Modo Manual</span>
-            </button>
+          {!isService && (
+            <div className="bg-slate-100 dark:bg-slate-800/70 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  setScanMode('manual');
+                  setLookupFeedback(null);
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  scanMode === 'manual'
+                    ? 'bg-[#3498db] text-white shadow-md shadow-[#3498db]/30 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60 font-semibold'
+                }`}
+              >
+                <Keyboard className="w-4 h-4" />
+                <span>Modo Manual</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setScanMode('pistola');
-                setLookupFeedback(null);
-                setTimeout(() => barcodeInputRef.current?.focus(), 100);
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                scanMode === 'pistola'
-                  ? 'bg-crimson-600 text-white shadow-md shadow-crimson-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Barcode className="w-4 h-4" />
-              <span>Pistola Láser USB/BT</span>
-              <span className="hidden sm:inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setScanMode('pistola');
+                  setLookupFeedback(null);
+                  setTimeout(() => barcodeInputRef.current?.focus(), 100);
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  scanMode === 'pistola'
+                    ? 'bg-[#3498db] text-white shadow-md shadow-[#3498db]/30 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60 font-semibold'
+                }`}
+              >
+                <Barcode className="w-4 h-4" />
+                <span>Pistola / Escáner</span>
+              </button>
+            </div>
+          )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setScanMode('celular');
-                setLookupFeedback(null);
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                scanMode === 'celular'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Escanear con Celular</span>
-            </button>
-          </div>
-
-          {/* PANEL SEGÚN EL MODO SELECCIONADO */}
-          {scanMode === 'pistola' && (
-            <div className="p-3.5 rounded-2xl bg-crimson-500/10 border border-crimson-500/30 space-y-2 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-crimson-600 dark:text-crimson-400 text-xs font-bold">
-                  <Zap className="w-4 h-4 animate-bounce" />
-                  <span>Escáner Láser Listo: Apunta la pistola al código de barras</span>
+          {/* ALERTA DE CONEXIÓN ESCÁNER WEB SI NO ESTÁ ONLINE */}
+          {!isService && globalScannerMode === 'web' && !isServerOnline && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400 text-xs">
+                <AlertCircle className="w-5 h-5 shrink-0 text-amber-500" />
+                <div>
+                  <p className="font-bold">Sin conexión con el escáner web</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                    El modo configurado es escáner web/WiFi pero el servidor no responde. Puedes configurar el escáner o usar modo pistola/manual.
+                  </p>
                 </div>
-                {isSearchingWorldwide && (
-                  <span className="text-[11px] font-semibold text-crimson-600 dark:text-crimson-400 flex items-center gap-1.5 animate-pulse">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Buscando en API mundial...
-                  </span>
-                )}
               </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  onNavigate?.('configuracion');
+                }}
+                className="text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 shrink-0 flex items-center gap-1.5"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Configurar Escáner</span>
+              </Button>
+            </div>
+          )}
 
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="pistolaInput"
-                    ref={barcodeInputRef}
-                    placeholder="Escanea con la pistola o digita el código..."
-                    value={pistolaInput}
-                    onChange={(e) => setPistolaInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleBarcodeReceived(pistolaInput, 'pistola');
-                      }
-                    }}
-                    leftIcon={<Barcode className="w-4 h-4 text-crimson-500" />}
-                    autoFocus
-                    className="font-mono text-sm border-crimson-500/30 focus:border-crimson-500"
-                  />
-                </div>
+          {!isService && scanMode === 'pistola' && (
+            <div className="p-4 rounded-2xl bg-[#3498db]/10 border border-[#3498db]/30 space-y-2 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#3498db] uppercase tracking-wider flex items-center gap-1.5">
+                  <Barcode className="w-4 h-4" />
+                  <span>Escáner Físico Listo</span>
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Presiona Enter al disparar
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder="Dispara la pistola lectora o escribe el código aquí..."
+                  value={pistolaInput}
+                  onChange={(e) => setPistolaInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleBarcodeReceived(pistolaInput, 'pistola');
+                    }
+                  }}
+                  leftIcon={<Barcode className="w-4 h-4 text-[#3498db]" />}
+                  className="font-mono text-xs"
+                />
                 <Button
                   type="button"
                   onClick={() => handleBarcodeReceived(pistolaInput, 'pistola')}
                   disabled={!pistolaInput.trim() || isSearchingWorldwide}
                   isLoading={isSearchingWorldwide}
-                  className="bg-crimson-600 hover:bg-crimson-700 text-white font-bold text-xs shrink-0"
+                  className="bg-[#3498db] hover:bg-[#2980b9] text-white font-bold text-xs shrink-0"
                 >
-                  <Globe className="w-4 h-4 mr-1.5" />
+                  <Search className="w-4 h-4 mr-1.5" />
                   Consultar API
                 </Button>
-              </div>
-            </div>
-          )}
-
-          {scanMode === 'celular' && (
-            <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 space-y-3 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold">
-                  <Wifi className="w-4 h-4 animate-pulse" />
-                  <span>Conecta tu celular como pistola inalámbrica</span>
-                </div>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold">
-                  Puerto 5050 Activo
-                </span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/50 dark:bg-slate-900/50 p-3.5 rounded-xl border border-blue-500/20">
-                {/* QR Code Container */}
-                <div className="bg-white p-2.5 rounded-xl shadow-md shrink-0">
-                  <QRCodeSVG value={serverUrl} size={110} level="M" />
-                </div>
-
-                <div className="space-y-2 text-xs flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUseHttps(true);
-                        setServerUrl(httpsUrl);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        useHttps
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      🔒 HTTPS (5051)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUseHttps(false);
-                        setServerUrl(httpUrl);
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        !useHttps
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      🌐 HTTP (5050)
-                    </button>
-                    <span className="text-[10px] text-slate-400 italic">
-                      {useHttps ? 'Permite cámara en Chrome/Safari' : 'Sin certificado'}
-                    </span>
-                  </div>
-
-                  <p className="font-semibold text-slate-800 dark:text-slate-200">
-                    1. Escanea este código QR con la cámara de tu teléfono móvil.
-                  </p>
-                  <p className="text-slate-600 dark:text-slate-400 text-[11px]">
-                    2. O abre esta dirección en el navegador de tu celular (misma red WiFi):
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="bg-slate-200 dark:bg-slate-800 px-2.5 py-1 rounded-lg text-blue-600 dark:text-blue-400 font-mono font-bold text-xs select-all">
-                      {serverUrl}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={handleCopyUrl}
-                      className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1"
-                      title="Copiar enlace"
-                    >
-                      {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  {lastScannedCode && (
-                    <div className="pt-1 text-[11px] text-emerald-500 font-mono font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Último escaneo recibido del celular: {lastScannedCode}</span>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
@@ -680,20 +665,20 @@ export const ProductosPage: React.FC = () => {
 
           {/* FORMULARIO DE REGISTRO EN DOS SECCIONES AMPLIAS */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* SECCIÓN 1: IDENTIFICACIÓN DEL PRODUCTO */}
+            {/* SECCIÓN 1: IDENTIFICACIÓN DEL PRODUCTO / SERVICIO */}
             <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-                <span>Identificación del Artículo</span>
+                <span>{isService ? 'Identificación del Servicio' : 'Identificación del Artículo'}</span>
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-1">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
-                    Código de Barras *
+                    {isService ? 'Código de Servicio *' : 'Código de Barras *'}
                   </label>
                   <Input
-                    placeholder="Ej: 7861024600018"
+                    placeholder={isService ? 'Ej: SERV-MANT' : 'Ej: 7861024600018'}
                     value={formData.codigo}
                     onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
                     leftIcon={<Hash className="w-4 h-4" />}
@@ -704,25 +689,46 @@ export const ProductosPage: React.FC = () => {
 
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
-                    Nombre / Descripción del Artículo *
+                    {isService ? 'Nombre del Servicio Técnico *' : 'Nombre / Descripción del Artículo *'}
                   </label>
                   <Input
-                    placeholder="Ej: Memoria RAM Kingston Fury 8GB DDR4 3200MHz"
+                    placeholder={
+                      isService
+                        ? 'Ej: Mantenimiento Preventivo y Limpieza de Pasta Térmica'
+                        : 'Ej: Memoria RAM Kingston Fury 8GB DDR4 3200MHz'
+                    }
                     value={formData.nombre}
                     onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    leftIcon={<Tag className="w-4 h-4" />}
+                    leftIcon={isService ? <Wrench className="w-4 h-4 text-amber-500" /> : <Tag className="w-4 h-4" />}
                     required
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
+                  Descripción Detallada {isService ? '(Qué incluye el servicio)' : '(Opcional)'}
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder={
+                    isService
+                      ? 'Describe el procedimiento, garantía y alcances técnicos del servicio...'
+                      : 'Especificaciones adicionales del repuesto...'
+                  }
+                  value={formData.descripcion || ''}
+                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
             </div>
 
-            {/* SECCIÓN 2: CONTROL DE PRECIOS Y STOCK */}
+            {/* SECCIÓN 2: CONTROL DE PRECIOS, TIEMPO O STOCK */}
             <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Control de Inventario y Precios</span>
+                  <span>{isService ? 'Tarifas y Duración Estimada' : 'Control de Inventario y Precios'}</span>
                 </h4>
 
                 {pvp > 0 && costo > 0 && (
@@ -734,22 +740,64 @@ export const ProductosPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
-                    Stock Inicial (Uds)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={formData.cantidad}
-                    onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
+                {isService ? (
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span>Tiempo Estimado *</span>
+                      <span className="text-amber-500 font-mono font-bold">
+                        {formatMinutes(formData.tiempo_estimado_minutos)}
+                      </span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="5"
+                      step="5"
+                      placeholder="60"
+                      value={formData.tiempo_estimado_minutos || 60}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          tiempo_estimado_minutos: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      leftIcon={<Clock className="w-4 h-4 text-amber-500" />}
+                      required
+                    />
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      {[30, 45, 60, 90, 120].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tiempo_estimado_minutos: mins })}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-all ${
+                            formData.tiempo_estimado_minutos === mins
+                              ? 'bg-amber-500 text-white shadow-sm'
+                              : 'bg-slate-200 dark:bg-slate-750 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
+                          }`}
+                        >
+                          {mins < 60 ? `${mins}m` : `${mins / 60}h`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
+                      Stock Inicial (Uds)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={formData.cantidad}
+                      onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
-                    Costo Compra ($)
+                    {isService ? 'Costo Insumos / Base ($)' : 'Costo Compra ($)'}
                   </label>
                   <Input
                     type="number"
@@ -763,7 +811,7 @@ export const ProductosPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
-                    PVP Venta Sugerido ($) *
+                    {isService ? 'Tarifa al Cliente ($) *' : 'Precio de Venta al Público (PVP) ($) *'}
                   </label>
                   <Input
                     type="number"
@@ -771,10 +819,33 @@ export const ProductosPage: React.FC = () => {
                     min="0"
                     placeholder="0.00"
                     value={formData.precio_venta_sugerido}
-                    onChange={(e) => setFormData({ ...formData, precio_venta_sugerido: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setFormData({
+                        ...formData,
+                        precio_venta_sugerido: val,
+                        precio_venta_recomendado: val,
+                      });
+                    }}
                     className="font-bold text-emerald-600 dark:text-emerald-400"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
+                    Tarifa de IVA (%)
+                  </label>
+                  <select
+                    value={formData.impuesto !== undefined && formData.impuesto !== null ? String(formData.impuesto) : '15'}
+                    onChange={(e) => setFormData({ ...formData, impuesto: parseFloat(e.target.value) || 0 })}
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs py-2 px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 shadow-sm"
+                  >
+                    <option value="15">15% (Tarifa General)</option>
+                    <option value="0">0% (Tarifa 0% / Exento)</option>
+                    <option value="5">5% (Materiales)</option>
+                    <option value="8">8% (Turismo)</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -796,7 +867,7 @@ export const ProductosPage: React.FC = () => {
                 isLoading={createMutation.isPending}
                 className="px-6 shadow-sm"
               >
-                Guardar Artículo
+                {isService ? 'Guardar Servicio' : 'Guardar Artículo'}
               </Button>
             </div>
           </form>

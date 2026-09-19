@@ -68,9 +68,16 @@ const MainRouter: React.FC = () => {
           case 'equipos':
             return <EquiposPage />;
           case 'productos':
-            return <ProductosPage />;
+            return <ProductosPage activeTipo="PRODUCTO" onNavigate={onNavigate} />;
+          case 'servicios':
+            return <ProductosPage activeTipo="SERVICIO" onNavigate={onNavigate} />;
           case 'reportes':
-            return <ReportesPage selectedOrder={selectedOrderForReport} />;
+            return (
+              <ReportesPage
+                selectedOrder={selectedOrderForReport}
+                onClearSelectedOrder={() => setSelectedOrderForReport(null)}
+              />
+            );
           case 'configuracion':
             return <ConfiguracionPage />;
           default:

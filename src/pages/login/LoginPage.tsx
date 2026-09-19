@@ -6,15 +6,21 @@ import { Wrench, Lock, User as UserIcon, AlertCircle, Eye, EyeOff } from 'lucide
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  
+  const savedUsername = localStorage.getItem('tecnishop_saved_username') || '';
+  const initialRemember = localStorage.getItem('tecnishop_remember_user') === 'true';
+
+  const [username, setUsername] = useState(savedUsername);
   const [password, setPassword] = useState('');
+  const [rememberUser, setRememberUser] = useState(initialRemember);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
+    const cleanUser = username.trim();
+    if (!cleanUser || !password.trim()) {
       setError('Por favor ingresa usuario y contraseña');
       return;
     }
@@ -23,12 +29,27 @@ export const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      await login({ username: username.trim(), password });
+      if (rememberUser) {
+        localStorage.setItem('tecnishop_saved_username', cleanUser);
+        localStorage.setItem('tecnishop_remember_user', 'true');
+      } else {
+        localStorage.removeItem('tecnishop_saved_username');
+        localStorage.removeItem('tecnishop_remember_user');
+      }
+
+      await login({ username: cleanUser, password });
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message || 'Credenciales inválidas');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleForgetSavedUser = () => {
+    localStorage.removeItem('tecnishop_saved_username');
+    localStorage.removeItem('tecnishop_remember_user');
+    setUsername('');
+    setRememberUser(false);
   };
 
   return (
@@ -57,6 +78,22 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
+        {savedUsername && username === savedUsername && (
+          <div className="mb-4 flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#3498db]/15 border border-[#3498db]/30 text-xs text-blue-200 animate-fadeIn">
+            <span className="flex items-center gap-1.5 font-medium">
+              <UserIcon className="w-3.5 h-3.5 text-[#3498db]" />
+              Usuario guardado: <strong className="text-white">{savedUsername}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleForgetSavedUser}
+              className="text-[11px] text-slate-400 hover:text-rose-300 underline font-medium transition-colors"
+            >
+              Cambiar
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
@@ -67,9 +104,9 @@ export const LoginPage: React.FC = () => {
               placeholder="Ingresa tu usuario"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              leftIcon={<UserIcon className="w-4 h-4" />}
-              autoFocus
-              className="bg-slate-900/50 border-slate-700 text-white placeholder-slate-500"
+              leftIcon={<UserIcon className="w-4 h-4 text-slate-500" />}
+              autoFocus={!savedUsername}
+              className="bg-white !bg-white border-slate-300 text-black !text-black dark:text-black dark:!text-black dark:bg-white dark:!bg-white placeholder:text-slate-400 font-medium"
             />
           </div>
 
@@ -82,19 +119,32 @@ export const LoginPage: React.FC = () => {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              leftIcon={<Lock className="w-4 h-4" />}
+              leftIcon={<Lock className="w-4 h-4 text-slate-500" />}
+              autoFocus={Boolean(savedUsername)}
               rightIcon={
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="p-1 text-slate-400 hover:text-white transition-colors focus:outline-none"
+                  className="p-1 text-slate-500 hover:text-slate-800 transition-colors focus:outline-none"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               }
-              className="bg-slate-900/50 border-slate-700 text-white placeholder-slate-500"
+              className="bg-white !bg-white border-slate-300 text-black !text-black dark:text-black dark:!text-black dark:bg-white dark:!bg-white placeholder:text-slate-400 font-medium"
             />
+          </div>
+
+          <div className="flex items-center justify-between text-xs pt-0.5">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-white transition-colors">
+              <input
+                type="checkbox"
+                checked={rememberUser}
+                onChange={(e) => setRememberUser(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-700 bg-slate-900/60 text-[#3498db] focus:ring-[#3498db] focus:ring-offset-0 transition-colors cursor-pointer"
+              />
+              <span className="font-medium text-[11px] sm:text-xs">Recordar usuario en este equipo</span>
+            </label>
           </div>
 
           <Button

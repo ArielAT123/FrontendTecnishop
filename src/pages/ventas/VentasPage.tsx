@@ -9,7 +9,6 @@ import { Input } from '../../components/ui/Input';
 import { FacturaPrintModal } from '../../components/print/FacturaPrintModal';
 import {
   Barcode,
-  ShoppingCart,
   Trash2,
   Plus,
   Minus,
@@ -25,17 +24,28 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Settings,
 } from 'lucide-react';
+import { useScannerConfig } from '../../context/ScannerContext';
+import { scannerSubject, BarcodeScanEvent } from '../../services/scannerObserver';
+import { playScannerBeep } from '../../services/productLookupService';
+import { getProductPrice, getProductTaxRate } from '../../utils/productUtils';
 
 interface CartItem {
   producto: Producto;
   cantidad: number;
   precio_unitario: number;
+  impuesto_porcentaje: number;
   subtotal: number;
 }
 
-export const VentasPage: React.FC = () => {
+export interface VentasPageProps {
+  onNavigate?: (section: any) => void;
+}
+
+export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
   const queryClient = useQueryClient();
+  const { scannerMode, isServerOnline } = useScannerConfig();
   const [activeTab, setActiveTab] = useState<'pos' | 'history'>('pos');
 
   // Scanner & Search State
@@ -94,22 +104,24 @@ export const VentasPage: React.FC = () => {
   const addProductToCart = (prod: Producto, qtyToAdd = 1) => {
     setScanError(null);
 
-    // Check available stock
+    // Check available stock (only for physical products)
+    const isService = prod.tipo === 'SERVICIO';
     const existingIndex = cart.findIndex((item) => item.producto.codigo === prod.codigo);
     const currentCartQty = existingIndex >= 0 ? cart[existingIndex].cantidad : 0;
     const requestedTotal = currentCartQty + qtyToAdd;
 
-    if (requestedTotal > prod.cantidad) {
+    if (!isService && requestedTotal > prod.cantidad) {
       setScanError(`¡Stock insuficiente para "${prod.nombre}"! Disponible: ${prod.cantidad}, en carrito: ${currentCartQty}`);
       return;
     }
 
-    const unitPrice = Number(prod.precio_venta_recomendado || prod.precio_venta_sugerido || 0);
+    const unitPrice = getProductPrice(prod);
+    const taxRate = getProductTaxRate(prod);
 
     if (existingIndex >= 0) {
       const updated = [...cart];
       updated[existingIndex].cantidad = requestedTotal;
-      updated[existingIndex].subtotal = requestedTotal * unitPrice;
+      updated[existingIndex].subtotal = requestedTotal * updated[existingIndex].precio_unitario;
       setCart(updated);
     } else {
       setCart([
@@ -118,12 +130,13 @@ export const VentasPage: React.FC = () => {
           producto: prod,
           cantidad: qtyToAdd,
           precio_unitario: unitPrice,
+          impuesto_porcentaje: taxRate,
           subtotal: qtyToAdd * unitPrice,
         },
       ]);
     }
 
-    setScanStatusMessage(`✓ Agregado: ${prod.nombre} (${prod.codigo})`);
+    setScanStatusMessage(`Agregado: ${prod.nombre} (${prod.codigo})`);
     setTimeout(() => setScanStatusMessage(null), 3000);
   };
 
@@ -195,6 +208,43 @@ export const VentasPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [productos, cart]);
 
+  // PATRÓN OBSERVER: Suscribirse a scannerSubject para escaneos desde el móvil WiFi
+  useEffect(() => {
+    if (activeTab !== 'pos') return;
+
+    const unsubscribe = scannerSubject.subscribe({
+      onBarcodeScanned: (event: BarcodeScanEvent) => {
+        const code = event.barcode.trim();
+        if (!code) return;
+
+        playScannerBeep();
+        const found = productos.find(
+          (p) => p.codigo.trim().toLowerCase() === code.toLowerCase()
+        );
+
+        if (found) {
+          addProductToCart(found);
+          setScanStatusMessage(`Móvil: ${found.nombre} agregado al carrito`);
+          setTimeout(() => setScanStatusMessage(null), 3000);
+        } else {
+          api.getProductoByCodigo(code)
+            .then((prod) => {
+              addProductToCart(prod);
+              setScanStatusMessage(`Móvil: ${prod.nombre} agregado al carrito`);
+              setTimeout(() => setScanStatusMessage(null), 3000);
+            })
+            .catch(() => {
+              setScanError(`Móvil: No se encontró producto con el código "${code}"`);
+            });
+        }
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeTab, productos, cart]);
+
   // Update item quantity
   const updateQuantity = (index: number, newQty: number) => {
     if (newQty <= 0) {
@@ -202,7 +252,7 @@ export const VentasPage: React.FC = () => {
       return;
     }
     const item = cart[index];
-    if (newQty > item.producto.cantidad) {
+    if (item.producto.tipo !== 'SERVICIO' && newQty > item.producto.cantidad) {
       setScanError(`Stock máximo alcanzado para ${item.producto.nombre}: ${item.producto.cantidad}`);
       return;
     }
@@ -210,6 +260,23 @@ export const VentasPage: React.FC = () => {
     const updated = [...cart];
     updated[index].cantidad = newQty;
     updated[index].subtotal = newQty * item.precio_unitario;
+    setCart(updated);
+  };
+
+  // Update item unit price
+  const updateUnitPrice = (index: number, newPrice: number) => {
+    const safePrice = Math.max(0, isNaN(newPrice) ? 0 : newPrice);
+    const updated = [...cart];
+    updated[index].precio_unitario = safePrice;
+    updated[index].subtotal = updated[index].cantidad * safePrice;
+    setCart(updated);
+  };
+
+  // Update item tax rate
+  const updateItemTax = (index: number, newTax: number) => {
+    const safeTax = Math.max(0, isNaN(newTax) ? 0 : newTax);
+    const updated = [...cart];
+    updated[index].impuesto_porcentaje = safeTax;
     setCart(updated);
   };
 
@@ -229,10 +296,18 @@ export const VentasPage: React.FC = () => {
   // Calculation totals
   const subtotalTotal = cart.reduce((acc, item) => acc + item.subtotal, 0);
   const ivaTotal = cart.reduce((acc, item) => {
-    const taxRate = Number(item.producto.impuesto || 15) / 100;
-    return acc + item.subtotal * taxRate;
+    const rate = (item.impuesto_porcentaje ?? 15) / 100;
+    return acc + item.subtotal * rate;
   }, 0);
   const totalPagar = subtotalTotal + ivaTotal;
+
+  // Breakdown for SRI display
+  const subtotal15 = cart
+    .filter((item) => (item.impuesto_porcentaje ?? 15) > 0)
+    .reduce((acc, item) => acc + item.subtotal, 0);
+  const subtotal0 = cart
+    .filter((item) => (item.impuesto_porcentaje ?? 15) === 0)
+    .reduce((acc, item) => acc + item.subtotal, 0);
 
   const montoRecibidoNum = parseFloat(montoRecibido) || 0;
   const cambio = montoRecibidoNum > totalPagar ? montoRecibidoNum - totalPagar : 0;
@@ -278,6 +353,7 @@ export const VentasPage: React.FC = () => {
         codigo: item.producto.codigo,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
+        impuesto_porcentaje: item.impuesto_porcentaje,
       })),
     };
 
@@ -308,24 +384,12 @@ export const VentasPage: React.FC = () => {
     : [];
 
   return (
-    <div className="space-y-6 animate-fadeIn select-none">
-      {/* Top Header & Tabs */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5 tracking-tight">
-            <span className="p-2 rounded-xl bg-[#3498db] text-white shadow-md shadow-[#3498db]/30">
-              <ShoppingCart className="w-6 h-6" />
-            </span>
-            Punto de Venta (POS) & Facturación
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Escaneo de código de barras, cobro y descuento automático de inventario
-          </p>
-        </div>
-
-        {/* Tab Buttons */}
-        <div className="flex bg-slate-200 dark:bg-slate-800/70 p-1 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700/60">
+    <div className="space-y-5 animate-fadeIn select-none">
+      {/* Top Tabs Bar */}
+      <div className="flex items-center justify-end">
+        <div className="flex bg-slate-200/80 dark:bg-slate-800/70 p-1 rounded-xl text-xs font-bold border border-slate-300/80 dark:border-slate-700/60">
           <button
+            type="button"
             onClick={() => setActiveTab('pos')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
               activeTab === 'pos'
@@ -337,6 +401,7 @@ export const VentasPage: React.FC = () => {
             <span>Nueva Venta</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('history')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
               activeTab === 'history'
@@ -359,17 +424,51 @@ export const VentasPage: React.FC = () => {
           {/* LEFT: SCANNER & CART (8 cols) */}
           <div className="lg:col-span-8 space-y-4">
             {/* BARCODE SCANNER BOX */}
-            <Card className="p-4 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <Card className="p-4 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+              {/* Alert if scannerMode === 'web' and !isServerOnline */}
+              {scannerMode === 'web' && !isServerOnline && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-fadeIn text-xs">
+                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                    <span>
+                      Sin conexión con el escáner web. Conecta tu celular escaneando el QR en Configuración o utiliza modo USB.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onNavigate?.('configuracion')}
+                    className="text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 shrink-0 flex items-center gap-1.5"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Ir a Configuración</span>
+                  </Button>
+                </div>
+              )}
+
               <form onSubmit={handleBarcodeSubmit} className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                    <span className={`w-2.5 h-2.5 rounded-full ${
+                      scannerMode === 'web'
+                        ? isServerOnline
+                          ? 'bg-emerald-500 animate-pulse'
+                          : 'bg-amber-500'
+                        : 'bg-emerald-500 animate-ping'
+                    }`} />
                     <span className="text-xs font-bold text-[#3498db] tracking-wider uppercase">
-                      Lector de Código de Barras Activo
+                      {scannerMode === 'web'
+                        ? isServerOnline
+                          ? 'Escáner Móvil WiFi Sincronizado'
+                          : 'Escáner Móvil Desconectado'
+                        : 'Lector de Código de Barras Activo'}
                     </span>
                   </div>
                   <span className="text-[11px] text-slate-400 font-medium">
-                    Pistola USB / Bluetooth o Teclado + Enter
+                    {scannerMode === 'web'
+                      ? 'Dispara desde la cámara de tu celular'
+                      : 'Pistola USB / Bluetooth o Teclado + Enter'}
                   </span>
                 </div>
 
@@ -382,7 +481,11 @@ export const VentasPage: React.FC = () => {
                     type="text"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
-                    placeholder="Dispara el escáner o escribe el código de barras aquí y presiona Enter..."
+                    placeholder={
+                      scannerMode === 'web'
+                        ? 'Esperando escaneo desde el celular o ingresa código manualmente...'
+                        : 'Dispara el escáner o escribe el código de barras aquí y presiona Enter...'
+                    }
                     className="w-full pl-12 pr-28 py-3.5 bg-white dark:bg-slate-950 border-2 border-[#3498db]/60 focus:border-[#3498db] rounded-xl text-slate-900 dark:text-white font-mono text-sm shadow-inner focus:outline-none focus:ring-4 focus:ring-[#3498db]/20 transition-all placeholder:text-slate-400"
                     autoFocus
                   />
@@ -419,7 +522,7 @@ export const VentasPage: React.FC = () => {
               )}
 
               {/* Manual search helper accordion */}
-              <div className="pt-2 border-t border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div className="flex-1 w-full relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
                   <input
@@ -427,13 +530,14 @@ export const VentasPage: React.FC = () => {
                     value={searchManual}
                     onChange={(e) => setSearchManual(e.target.value)}
                     placeholder="Búsqueda manual por nombre o código..."
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#3498db]"
+                    className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 focus:border-[#3498db]"
                   />
                 </div>
                 {searchManual && (
                   <button
+                    type="button"
                     onClick={() => setSearchManual('')}
-                    className="text-[11px] text-slate-400 hover:text-white whitespace-nowrap"
+                    className="text-[11px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white whitespace-nowrap"
                   >
                     Limpiar búsqueda
                   </button>
@@ -442,27 +546,39 @@ export const VentasPage: React.FC = () => {
 
               {/* Quick Results Drawer */}
               {filteredManualProducts.length > 0 && (
-                <div className="mt-2 p-2 bg-slate-900 border border-slate-700 rounded-xl space-y-1 animate-fadeIn">
-                  <p className="text-[10px] uppercase font-bold text-slate-400 px-2">Resultados coincidentes:</p>
+                <div className="mt-2 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1 animate-fadeIn shadow-lg">
+                  <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 px-2">Resultados coincidentes:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {filteredManualProducts.map((p) => (
                       <button
                         key={p.id}
+                        type="button"
                         onClick={() => {
                           addProductToCart(p);
                           setSearchManual('');
                           ensureScannerFocused();
                         }}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-left transition-colors border border-slate-700/60"
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-blue-50/70 dark:bg-slate-800 dark:hover:bg-slate-700 text-left transition-colors border border-slate-200 dark:border-slate-700/60"
                       >
                         <div className="truncate pr-2">
-                          <p className="text-xs font-bold text-white truncate">{p.nombre}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">
-                            {p.codigo} &bull; Stock: <b className={p.cantidad <= 2 ? 'text-amber-400' : 'text-emerald-400'}>{p.cantidad}</b>
+                          <div className="flex items-center gap-1.5 truncate">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{p.nombre}</p>
+                            {p.tipo === 'SERVICIO' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/30">
+                                Servicio
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                            {p.codigo} &bull; {p.tipo === 'SERVICIO' ? (
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">{p.tiempo_estimado_minutos ? `Est: ${p.tiempo_estimado_minutos} min` : 'Mano de obra'}</span>
+                            ) : (
+                              <>Stock: <b className={p.cantidad <= 2 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}>{p.cantidad}</b></>
+                            )}
                           </p>
                         </div>
                         <span className="font-mono font-bold text-xs text-[#3498db] whitespace-nowrap">
-                          ${Number(p.precio_venta_recomendado || p.precio_venta_sugerido || 0).toFixed(2)}
+                          ${getProductPrice(p).toFixed(2)}
                         </span>
                       </button>
                     ))}
@@ -517,16 +633,26 @@ export const VentasPage: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {cart.map((item, index) => {
-                        const taxRate = Number(item.producto.impuesto || 15);
                         return (
                           <tr
                             key={item.producto.id}
                             className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
                           >
                             <td className="py-3 px-4">
-                              <p className="font-bold text-slate-900 dark:text-slate-100">{item.producto.nombre}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-slate-900 dark:text-slate-100">{item.producto.nombre}</p>
+                                {item.producto.tipo === 'SERVICIO' && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20">
+                                    Servicio
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-400 font-mono">
-                                Código: {item.producto.codigo} &bull; Disponible: {item.producto.cantidad}
+                                Código: {item.producto.codigo} &bull; {item.producto.tipo === 'SERVICIO' ? (
+                                  item.producto.tiempo_estimado_minutos ? `Tiempo est: ${item.producto.tiempo_estimado_minutos} min` : 'Servicio técnico'
+                                ) : (
+                                  `Disponible: ${item.producto.cantidad}`
+                                )}
                               </p>
                             </td>
                             <td className="py-3 px-2 text-center">
@@ -540,7 +666,7 @@ export const VentasPage: React.FC = () => {
                                 <input
                                   type="number"
                                   min="1"
-                                  max={item.producto.cantidad}
+                                  max={item.producto.tipo === 'SERVICIO' ? 999 : item.producto.cantidad}
                                   value={item.cantidad}
                                   onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
                                   className="w-12 text-center bg-transparent text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -553,11 +679,32 @@ export const VentasPage: React.FC = () => {
                                 </button>
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-right font-mono font-medium">
-                              ${item.precio_unitario.toFixed(2)}
+                            <td className="py-3 px-3 text-right">
+                              <div className="inline-flex items-center justify-end border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-[#3498db]/40">
+                                <span className="text-slate-400 font-mono text-xs font-semibold mr-1">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.precio_unitario}
+                                  onChange={(e) => updateUnitPrice(index, parseFloat(e.target.value) || 0)}
+                                  className="w-16 text-right font-mono font-bold bg-transparent text-slate-900 dark:text-slate-100 text-xs focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  title="Precio unitario de venta (editable)"
+                                />
+                              </div>
                             </td>
-                            <td className="py-3 px-3 text-right font-mono text-[11px] text-slate-400">
-                              {taxRate}%
+                            <td className="py-3 px-3 text-right">
+                              <select
+                                value={item.impuesto_porcentaje}
+                                onChange={(e) => updateItemTax(index, parseFloat(e.target.value) || 0)}
+                                className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs py-1 px-1.5 font-semibold focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 cursor-pointer shadow-sm"
+                                title="Porcentaje de IVA"
+                              >
+                                <option value="15">15%</option>
+                                <option value="0">0%</option>
+                                <option value="5">5%</option>
+                                <option value="8">8%</option>
+                              </select>
                             </td>
                             <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                               ${item.subtotal.toFixed(2)}
@@ -591,24 +738,26 @@ export const VentasPage: React.FC = () => {
                 </span>
                 <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold">
                   <button
+                    type="button"
                     onClick={() => {
                       setClienteTipo('consumidor_final');
                       setSelectedCliente(null);
                     }}
-                    className={`px-2 py-1 rounded transition-colors ${
+                    className={`px-2.5 py-1 rounded transition-colors ${
                       clienteTipo === 'consumidor_final'
-                        ? 'bg-[#3498db] text-white'
-                        : 'text-slate-500 hover:text-white'
+                        ? 'bg-[#3498db] text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     Final
                   </button>
                   <button
+                    type="button"
                     onClick={() => setClienteTipo('registrado')}
-                    className={`px-2 py-1 rounded transition-colors ${
+                    className={`px-2.5 py-1 rounded transition-colors ${
                       clienteTipo === 'registrado'
-                        ? 'bg-[#3498db] text-white'
-                        : 'text-slate-500 hover:text-white'
+                        ? 'bg-[#3498db] text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     Registrado
@@ -619,7 +768,7 @@ export const VentasPage: React.FC = () => {
               {clienteTipo === 'consumidor_final' ? (
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-xs space-y-1 border border-slate-200/80 dark:border-slate-800/80">
                   <p className="font-bold text-slate-800 dark:text-slate-200">CONSUMIDOR FINAL</p>
-                  <p className="text-[11px] text-slate-400 font-mono">R.U.C./C.I.: 9999999999999</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">R.U.C./C.I.: 9999999999999</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -628,36 +777,42 @@ export const VentasPage: React.FC = () => {
                     value={clienteSearch}
                     onChange={(e) => setClienteSearch(e.target.value)}
                     placeholder="Buscar cliente por C.I. o nombre..."
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-300 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:border-[#3498db]"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 focus:border-[#3498db]"
                   />
 
                   {filteredClientes.length > 0 && !selectedCliente && (
-                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 divide-y divide-slate-800">
+                    <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 shadow-lg">
                       {filteredClientes.map((c) => (
                         <button
                           key={c.ci}
+                          type="button"
                           onClick={() => {
                             setSelectedCliente(c);
                             setClienteSearch('');
                           }}
-                          className="w-full p-2 text-left hover:bg-slate-800 text-xs transition-colors"
+                          className="w-full p-2.5 text-left hover:bg-blue-50/70 dark:hover:bg-slate-800 text-xs transition-colors"
                         >
-                          <p className="font-bold text-white">{c.nombre} {c.apellido || ''}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">{c.ci}</p>
+                          <p className="font-bold text-slate-900 dark:text-white">{c.nombre} {c.apellido || ''}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{c.ci}</p>
                         </button>
                       ))}
                     </div>
                   )}
 
                   {selectedCliente && (
-                    <div className="p-2.5 bg-blue-950/30 border border-[#3498db]/40 rounded-xl flex items-center justify-between text-xs">
+                    <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-[#3498db]/40 rounded-xl flex items-center justify-between text-xs shadow-sm transition-colors">
                       <div>
-                        <p className="font-bold text-white">{selectedCliente.nombre} {selectedCliente.apellido || ''}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">C.I.: {selectedCliente.ci} {selectedCliente.telefono && `• ${selectedCliente.telefono}`}</p>
+                        <p className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                          {selectedCliente.nombre} {selectedCliente.apellido || ''}
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-mono mt-0.5">
+                          C.I.: {selectedCliente.ci} {selectedCliente.telefono && `• ${selectedCliente.telefono}`}
+                        </p>
                       </div>
                       <button
+                        type="button"
                         onClick={() => setSelectedCliente(null)}
-                        className="text-xs text-rose-400 hover:text-rose-300 underline"
+                        className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:underline px-2 py-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors ml-2"
                       >
                         Cambiar
                       </button>
@@ -717,22 +872,22 @@ export const VentasPage: React.FC = () => {
 
               {/* Cash change calculator */}
               {metodoPago === 'EFECTIVO' && cart.length > 0 && (
-                <div className="pt-2 border-t border-slate-700/60 space-y-2">
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">Efectivo Recibido ($):</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">Efectivo Recibido ($):</span>
                     <input
                       type="number"
                       step="0.01"
                       placeholder="0.00"
                       value={montoRecibido}
                       onChange={(e) => setMontoRecibido(e.target.value)}
-                      className="w-24 px-2 py-1 text-right font-mono font-bold bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-[#3498db]"
+                      className="w-24 px-2 py-1 text-right font-mono font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-[#3498db]"
                     />
                   </div>
                   {montoRecibidoNum > 0 && (
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-xs">
-                      <span className="text-emerald-400 font-bold">Cambio / Vuelto:</span>
-                      <span className="font-mono font-black text-emerald-300 text-sm">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/30 text-xs">
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">Cambio / Vuelto:</span>
+                      <span className="font-mono font-black text-emerald-800 dark:text-emerald-300 text-sm">
                         ${cambio.toFixed(2)}
                       </span>
                     </div>
@@ -744,14 +899,22 @@ export const VentasPage: React.FC = () => {
             {/* TOTALS & CHECKOUT BUTTON */}
             <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="space-y-2 text-xs">
+                {subtotal0 > 0 && (
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Subtotal Tarifa 0%:</span>
+                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                      ${subtotal0.toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>Subtotal Sin Impuestos:</span>
+                  <span>{subtotal0 > 0 ? 'Subtotal Gravado (15%):' : 'Subtotal Sin Impuestos:'}</span>
                   <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                    ${subtotalTotal.toFixed(2)}
+                    ${(subtotal0 > 0 ? subtotal15 : subtotalTotal).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                  <span>I.V.A. (15%):</span>
+                  <span>I.V.A.:</span>
                   <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
                     ${ivaTotal.toFixed(2)}
                   </span>

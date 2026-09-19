@@ -92,15 +92,30 @@ export const ClientesPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.ci.trim() || !formData.nombre.trim()) {
+    const cleanCi = formData.ci.replace(/[\s,\.]/g, '').trim();
+    if (!cleanCi || !formData.nombre.trim()) {
       setFormError('La Cédula/RUC y el Nombre son obligatorios');
       return;
     }
 
+    let cleanPhone = formData.telefono ? formData.telefono.replace(/[\s\-\(\)\.]/g, '').trim() : '';
+    const digits = cleanPhone.replace(/\D/g, '');
+    if (digits.startsWith('9') && digits.length < 10) {
+      cleanPhone = '0' + digits;
+    }
+
+    const payload: Partial<Cliente> = {
+      ...formData,
+      ci: cleanCi.length === 9 && /^\d+$/.test(cleanCi) ? cleanCi.padStart(10, '0') : cleanCi,
+      telefono: cleanPhone || '',
+      nombre: formData.nombre.trim(),
+      apellido: formData.apellido ? formData.apellido.trim() : '',
+    };
+
     if (editingCliente) {
-      updateMutation.mutate({ ci: editingCliente.ci, data: formData });
+      updateMutation.mutate({ ci: editingCliente.ci, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload as Cliente);
     }
   };
 

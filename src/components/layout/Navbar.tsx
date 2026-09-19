@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useIsFetching } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { Moon, Sun, LogOut, User as UserIcon, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
+import { Moon, Sun, LogOut, User as UserIcon, Maximize2, Minimize2 } from 'lucide-react';
 import { NavSection } from './Sidebar';
 
 interface NavbarProps {
@@ -12,7 +11,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentSection }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const isFetching = useIsFetching();
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -45,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentSection }) => {
     clientes: 'Directorio de Clientes',
     equipos: 'Dispositivos Técnicos',
     productos: 'Inventario y Repuestos',
+    servicios: 'Catálogo de Servicios Técnicos',
     reportes: 'Informes Técnicos & Facturación',
     configuracion: 'Ajustes del Sistema',
   };
@@ -55,20 +54,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentSection }) => {
         <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
           {sectionTitles[currentSection]}
         </h2>
-
-        {/* Background Sync Badge */}
-        {isFetching > 0 ? (
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[#3498db] text-[11px] font-semibold animate-pulse">
-            <RefreshCw className="w-3 h-3 animate-spin text-[#3498db]" />
-            <span className="hidden sm:inline">Actualizando en segundo plano...</span>
-            <span className="sm:hidden">Sincronizando...</span>
-          </div>
-        ) : (
-          <div className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>Caché Activa &bull; En línea</span>
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-2">

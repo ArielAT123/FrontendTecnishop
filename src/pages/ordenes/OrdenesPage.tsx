@@ -14,6 +14,7 @@ import {
   Search,
   Eye,
   FileText,
+  FileCheck,
   AlertCircle,
   Calendar,
   UserCheck,
@@ -39,6 +40,7 @@ import {
 } from 'lucide-react';
 import { NavSection } from '../../components/layout/Sidebar';
 import { OrdenPrintModal } from '../../components/print/OrdenPrintModal';
+import { RegistrarEquipoModal } from '../../components/equipos/RegistrarEquipoModal';
 import { saveToCache } from '../../utils/cacheManager';
 
 interface OrdenesPageProps {
@@ -66,27 +68,18 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
   const [clientSearch, setClientSearch] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
-  // New Equipment Form State
-  const [newEquipoData, setNewEquipoData] = useState({
-    nombre: '',
-    marca: '',
-    modelo: '',
-    numero_serie: '',
-    cargador: false,
-    bateria: false,
-    cable_poder: false,
-    cable_datos: false,
-    otros: '',
-    problema: '',
-  });
-  const [newEquipoError, setNewEquipoError] = useState<string | null>(null);
-
   // New Order Form State
   const [formData, setFormData] = useState({
     equipo: '',
     fecha: new Date().toISOString().split('T')[0],
     realiza_orden: '',
     estado: 'PENDIENTE' as OrdenEstado,
+    cargador: false,
+    bateria: false,
+    cable_poder: false,
+    cable_datos: false,
+    otros: '',
+    problema: '',
   });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -113,50 +106,13 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
     mutationFn: (data: any) => api.createOrden(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ordenes'] });
+      queryClient.invalidateQueries({ queryKey: ['ordenes-for-reports'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setIsCreateOpen(false);
       resetForm();
     },
     onError: (err: any) => {
       setFormError(err.message || 'Error al crear la orden de servicio');
-    },
-  });
-
-  const createEquipoMutation = useMutation({
-    mutationFn: async (data: typeof newEquipoData) => {
-      if (!selectedCliente) throw new Error('Debes seleccionar un cliente primero');
-      if (!data.nombre.trim()) throw new Error('El tipo o nombre del equipo es obligatorio');
-
-      const equipo = await api.createEquipo({
-        nombre: data.nombre.trim(),
-        marca: data.marca.trim(),
-        modelo: data.modelo.trim(),
-        numero_serie: data.numero_serie.trim(),
-        cliente_ci: selectedCliente.ci,
-      });
-
-      await api.createObservaciones(equipo.id, {
-        cargador: data.cargador,
-        bateria: data.bateria,
-        cable_poder: data.cable_poder,
-        cable_datos: data.cable_datos,
-        otros: data.otros,
-      });
-
-      if (data.problema.trim()) {
-        await api.createProblema(equipo.id, { problema: data.problema.trim() });
-      }
-
-      return equipo;
-    },
-    onSuccess: (nuevoEquipo) => {
-      queryClient.invalidateQueries({ queryKey: ['equipos'] });
-      setFormData((prev) => ({ ...prev, equipo: nuevoEquipo.id }));
-      setIsAddEquipoOpen(false);
-      resetNewEquipoForm();
-    },
-    onError: (err: any) => {
-      setNewEquipoError(err?.response?.data?.error || err.message || 'Error al registrar el equipo');
     },
   });
 
@@ -210,18 +166,6 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
       fecha: new Date().toISOString().split('T')[0],
       realiza_orden: '',
       estado: 'PENDIENTE',
-    });
-    setSelectedCliente(null);
-    setClientSearch('');
-    setFormError(null);
-  };
-
-  const resetNewEquipoForm = () => {
-    setNewEquipoData({
-      nombre: '',
-      marca: '',
-      modelo: '',
-      numero_serie: '',
       cargador: false,
       bateria: false,
       cable_poder: false,
@@ -229,7 +173,9 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
       otros: '',
       problema: '',
     });
-    setNewEquipoError(null);
+    setSelectedCliente(null);
+    setClientSearch('');
+    setFormError(null);
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -238,20 +184,12 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
       setFormError('Debes seleccionar o registrar un equipo para la orden');
       return;
     }
-    createMutation.mutate(formData);
-  };
-
-  const handleCreateEquipoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCliente) {
-      setNewEquipoError('Selecciona un cliente primero');
-      return;
-    }
-    if (!newEquipoData.nombre.trim()) {
-      setNewEquipoError('El tipo o nombre del equipo es obligatorio (ej. Laptop, PC)');
-      return;
-    }
-    createEquipoMutation.mutate(newEquipoData);
+    const payload = {
+      ...formData,
+      fecha: formData.fecha || new Date().toISOString().split('T')[0],
+      estado: formData.estado || 'PENDIENTE',
+    };
+    createMutation.mutate(payload);
   };
 
   // Filtrado de clientes para el buscador
@@ -641,16 +579,26 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
                               <Eye className="w-4 h-4" />
                             </button>
                             {onNavigate && (
-                              <button
-                                onClick={() => {
-                                  if (onSelectOrderForReport) onSelectOrderForReport(orden);
-                                  onNavigate('reportes');
-                                }}
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                title="Generar Reporte Técnico"
-                              >
-                                <FileText className="w-4 h-4" />
-                              </button>
+                              orden.tiene_ficha_tecnica ? (
+                                <button
+                                  onClick={() => onNavigate('reportes')}
+                                  className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                                  title="Ficha técnica ya emitida (Ver informes)"
+                                >
+                                  <FileCheck className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    if (onSelectOrderForReport) onSelectOrderForReport(orden);
+                                    onNavigate('reportes');
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                  title="Generar Reporte Técnico"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                </button>
+                              )
                             )}
                           </div>
                         </td>
@@ -875,18 +823,28 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
                                       >
                                         <Eye className="w-4 h-4" />
                                       </button>
-                                      {onNavigate && (
-                                        <button
-                                          onClick={() => {
-                                            if (onSelectOrderForReport) onSelectOrderForReport(orden);
-                                            onNavigate('reportes');
-                                          }}
-                                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                          title="Generar Reporte Técnico"
-                                        >
-                                          <FileText className="w-4 h-4" />
-                                        </button>
-                                      )}
+                                       {onNavigate && (
+                                         orden.tiene_ficha_tecnica ? (
+                                           <button
+                                             onClick={() => onNavigate('reportes')}
+                                             className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                                             title="Ficha técnica ya emitida (Ver informes)"
+                                           >
+                                             <FileCheck className="w-4 h-4" />
+                                           </button>
+                                         ) : (
+                                           <button
+                                             onClick={() => {
+                                               if (onSelectOrderForReport) onSelectOrderForReport(orden);
+                                               onNavigate('reportes');
+                                             }}
+                                             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                             title="Generar Reporte Técnico"
+                                           >
+                                             <FileText className="w-4 h-4" />
+                                           </button>
+                                         )
+                                       )}
                                     </div>
                                   </td>
                                 </tr>
@@ -1105,37 +1063,66 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
             )}
           </div>
 
-          {/* 3. FECHA, ESTADO Y TÉCNICO */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Fecha de Ingreso *
+          {/* 3. ACCESORIOS RECIBIDOS CON EL EQUIPO */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-[#3498db]" />
+                3. Accesorios Recibidos
               </label>
-              <Input
-                type="date"
-                value={formData.fecha}
-                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                leftIcon={<Calendar className="w-4 h-4" />}
-              />
+              <span className="text-[10px] text-slate-400">Lo que deja el cliente para esta orden</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {[
+                { key: 'cargador', label: 'Cargador' },
+                { key: 'bateria', label: 'Batería' },
+                { key: 'cable_poder', label: 'Cable Poder' },
+                { key: 'cable_datos', label: 'Cable Datos' },
+              ].map(({ key, label }) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer text-xs font-medium hover:border-[#3498db]/60 transition-colors select-none"
+                >
+                  <input
+                    type="checkbox"
+                    checked={(formData as any)[key]}
+                    onChange={(e) => setFormData({ ...formData, [key]: e.target.checked })}
+                    className="rounded text-[#3498db] focus:ring-[#3498db]"
+                  />
+                  <span className="text-slate-700 dark:text-slate-200 font-semibold">{label}</span>
+                </label>
+              ))}
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Estado Inicial
-              </label>
-              <select
-                value={formData.estado}
-                onChange={(e) => setFormData({ ...formData, estado: e.target.value as OrdenEstado })}
-                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm py-2 px-3 focus:outline-none"
-              >
-                <option value="PENDIENTE">PENDIENTE</option>
-                <option value="EN_PROCESO">EN PROCESO</option>
-              </select>
+              <Input
+                placeholder="Otros accesorios (ej. Mouse, funda protectora, mochila, memoria USB)..."
+                value={formData.otros}
+                onChange={(e) => setFormData({ ...formData, otros: e.target.value })}
+                className="text-xs"
+              />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-              Técnico Asignado
+          {/* 4. FALLA O PROBLEMA REPORTADO */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 text-[#3498db]" />
+              4. Falla o Problema Reportado
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Describe el problema o trabajo solicitado para esta orden (ej. No enciende, mantenimiento preventivo, cambio de pantalla)..."
+              value={formData.problema}
+              onChange={(e) => setFormData({ ...formData, problema: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs p-3 focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 placeholder:text-slate-400"
+            />
+          </div>
+
+          {/* 5. TÉCNICO ASIGNADO */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-[#3498db]" />
+              5. Técnico Asignado (Opcional)
             </label>
             <Input
               placeholder="Nombre del técnico responsable"
@@ -1167,165 +1154,17 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
         </form>
       </Modal>
 
-      {/* Modal Agregar Equipo Nuevo para el Cliente */}
-      <Modal
+      {/* Modal Agregar Equipo Nuevo para el Cliente (Con Árbol Jerárquico y Ancho 3xl) */}
+      <RegistrarEquipoModal
         isOpen={isAddEquipoOpen}
-        onClose={() => {
+        onClose={() => setIsAddEquipoOpen(false)}
+        clienteCi={selectedCliente?.ci}
+        clienteNombre={selectedCliente ? `${selectedCliente.nombre} ${selectedCliente.apellido || ''}`.trim() : undefined}
+        onEquipoCreated={(newEquipo) => {
+          setFormData((prev) => ({ ...prev, equipo: newEquipo.id }));
           setIsAddEquipoOpen(false);
-          resetNewEquipoForm();
         }}
-        title={`Registrar Nuevo Equipo ${selectedCliente ? `(${selectedCliente.nombre})` : ''}`}
-        maxWidth="lg"
-      >
-        <form onSubmit={handleCreateEquipoSubmit} className="space-y-4">
-          {newEquipoError && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-500 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{newEquipoError}</span>
-            </div>
-          )}
-
-          {!selectedCliente ? (
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                Cliente Asociado *
-              </label>
-              <select
-                onChange={(e) => {
-                  const c = clientes.find((item) => item.ci === e.target.value);
-                  if (c) setSelectedCliente(c);
-                }}
-                className="block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm py-2 px-3 focus:outline-none"
-              >
-                <option value="">-- Selecciona el cliente para este equipo --</option>
-                {clientes.map((c) => (
-                  <option key={c.ci} value={c.ci}>
-                    {c.nombre} {c.apellido || ''} (CI: {c.ci})
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">Cliente Asociado:</span>{' '}
-                {selectedCliente.nombre} {selectedCliente.apellido || ''} (CI: {selectedCliente.ci})
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCliente(null)}
-                className="text-[11px] text-rose-500 hover:underline font-semibold ml-2 shrink-0"
-              >
-                Cambiar
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Tipo / Nombre *
-              </label>
-              <Input
-                placeholder="Laptop, PC, Impresora, Celular..."
-                value={newEquipoData.nombre}
-                onChange={(e) => setNewEquipoData({ ...newEquipoData, nombre: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Marca
-              </label>
-              <Input
-                placeholder="Dell, HP, Lenovo, Asus..."
-                value={newEquipoData.marca}
-                onChange={(e) => setNewEquipoData({ ...newEquipoData, marca: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Modelo
-              </label>
-              <Input
-                placeholder="Inspiron 15, Q405U..."
-                value={newEquipoData.modelo}
-                onChange={(e) => setNewEquipoData({ ...newEquipoData, modelo: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-                Número de Serie
-              </label>
-              <Input
-                placeholder="ABC123XYZ..."
-                value={newEquipoData.numero_serie}
-                onChange={(e) => setNewEquipoData({ ...newEquipoData, numero_serie: e.target.value })}
-                leftIcon={<Hash className="w-4 h-4" />}
-              />
-            </div>
-          </div>
-
-          {/* Accesorios y Condiciones */}
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-              <CheckSquare className="w-4 h-4 text-[#3498db]" />
-              Accesorios Recibidos
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { key: 'cargador', label: 'Cargador' },
-                { key: 'bateria', label: 'Batería' },
-                { key: 'cable_poder', label: 'Cable Poder' },
-                { key: 'cable_datos', label: 'Cable Datos' },
-              ].map(({ key, label }) => (
-                <label
-                  key={key}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 cursor-pointer text-xs font-medium"
-                >
-                  <input
-                    type="checkbox"
-                    checked={(newEquipoData as any)[key]}
-                    onChange={(e) => setNewEquipoData({ ...newEquipoData, [key]: e.target.checked })}
-                    className="rounded text-[#3498db] focus:ring-[#3498db]"
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-              Falla o Problema Reportado
-            </label>
-            <Input
-              placeholder="No enciende, pantalla rota, formateo..."
-              value={newEquipoData.problema}
-              onChange={(e) => setNewEquipoData({ ...newEquipoData, problema: e.target.value })}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setIsAddEquipoOpen(false);
-                resetNewEquipoForm();
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" isLoading={createEquipoMutation.isPending}>
-              Guardar y Seleccionar Equipo
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      />
 
       {/* Modal Ver Detalle de Orden */}
       <Modal
@@ -1379,6 +1218,58 @@ export const OrdenesPage: React.FC<OrdenesPageProps> = ({ onNavigate, onSelectOr
                 </p>
               </div>
             </div>
+
+            {/* Observaciones / Accesorios de la Orden */}
+            {(() => {
+              const obsList = viewingOrden.observaciones || viewingOrden.equipo?.observaciones;
+              const obs = Array.isArray(obsList) && obsList.length > 0 ? obsList[0] : null;
+              if (!obs) return null;
+              return (
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/40">
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 mb-1.5 flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5 text-[#3498db]" />
+                    <span>Accesorios Recibidos</span>
+                  </h4>
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <span className={`px-2 py-0.5 rounded-md font-medium ${obs.cargador ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      Cargador: {obs.cargador ? 'SÍ' : 'NO'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md font-medium ${obs.bateria ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      Batería: {obs.bateria ? 'SÍ' : 'NO'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md font-medium ${obs.cable_poder ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      Cable Poder: {obs.cable_poder ? 'SÍ' : 'NO'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md font-medium ${obs.cable_datos ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      Cable Datos: {obs.cable_datos ? 'SÍ' : 'NO'}
+                    </span>
+                    {obs.otros && (
+                      <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-[#3498db] border border-blue-500/20 font-medium">
+                        Otros: {obs.otros}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Falla o Problema Reportado */}
+            {(() => {
+              const probs = viewingOrden.problemas || viewingOrden.equipo?.problemas;
+              const probList = Array.isArray(probs) ? probs : [];
+              if (probList.length === 0) return null;
+              return (
+                <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/40">
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-1.5">
+                    <Wrench className="w-3.5 h-3.5 text-[#3498db]" />
+                    <span>Falla o Problema Reportado</span>
+                  </h4>
+                  <p className="text-slate-700 dark:text-slate-300 italic">
+                    {probList.map((p: any) => (typeof p === 'string' ? p : p.problema)).join(' | ')}
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

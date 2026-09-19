@@ -28,6 +28,7 @@ export interface Cliente {
 
 export interface Observaciones {
   id?: string;
+  orden?: string;
   equipo?: string;
   cargador: boolean;
   bateria: boolean;
@@ -38,6 +39,7 @@ export interface Observaciones {
 
 export interface ProblemaEquipo {
   id?: string;
+  orden?: string;
   equipo?: string;
   problema: string;
 }
@@ -56,6 +58,19 @@ export interface Equipo {
 
 export type OrdenEstado = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'COBRADO' | 'CANCELADO';
 
+export interface EstadoOrdenItem {
+  id: OrdenEstado;
+  label: string;
+}
+
+export const CATALOGO_ESTADOS_ORDEN: readonly EstadoOrdenItem[] = [
+  { id: 'PENDIENTE', label: 'Pendiente' },
+  { id: 'EN_PROCESO', label: 'En Proceso' },
+  { id: 'COMPLETADO', label: 'Completado' },
+  { id: 'COBRADO', label: 'Cobrado' },
+  { id: 'CANCELADO', label: 'Cancelado' },
+] as const;
+
 export interface Orden {
   id: string;
   numero_orden?: string;
@@ -63,6 +78,10 @@ export interface Orden {
   realiza_orden?: string;
   estado: OrdenEstado | string;
   equipo: Equipo;
+  observaciones?: Observaciones[];
+  problemas?: ProblemaEquipo[];
+  tiene_ficha_tecnica?: boolean;
+  reporte_id?: string | null;
 }
 
 export interface OrdenesPaginadasResponse {
@@ -74,6 +93,8 @@ export interface OrdenesPaginadasResponse {
   lote_anterior: string | null;
   ordenes: Orden[];
 }
+
+export type ItemTipo = 'PRODUCTO' | 'SERVICIO';
 
 export interface Producto {
   id: string;
@@ -88,6 +109,8 @@ export interface Producto {
   precio_venta_recomendado?: number;
   estado?: string;
   imagen_base64?: string;
+  tipo?: ItemTipo;
+  tiempo_estimado_minutos?: number;
 }
 
 export interface TrabajoRealizado {
@@ -159,6 +182,7 @@ export interface CreateVentaItem {
   codigo: string;
   cantidad: number;
   precio_unitario: number;
+  impuesto_porcentaje?: number;
 }
 
 export interface CreateVentaPayload {

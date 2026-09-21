@@ -7,6 +7,7 @@ import {
   Orden,
   OrdenesPaginadasResponse,
   Producto,
+  Proveedor,
   Reporte,
   Venta,
   CreateVentaPayload,
@@ -113,6 +114,10 @@ export const api = {
   },
   verifyToken: async () => {
     const { data } = await apiClient.get('/verify/');
+    return data;
+  },
+  verifyAdminPassword: async (password: string): Promise<{ valid: boolean; message?: string }> => {
+    const { data } = await apiClient.post<{ valid: boolean; message?: string }>('/verify-admin-password/', { password });
     return data;
   },
   logout: async () => {
@@ -259,6 +264,25 @@ export const api = {
   deleteProducto: async (codigo: string): Promise<void> => {
     await apiClient.delete(`/productos/${codigo}/`);
   },
+  getProveedores: async (): Promise<Proveedor[]> => {
+    const { data } = await apiClient.get<Proveedor[]>('/productos/proveedores/');
+    return Array.isArray(data) ? data : [];
+  },
+  createProveedor: async (proveedor: Partial<Proveedor>): Promise<Proveedor> => {
+    const { data } = await apiClient.post<Proveedor>('/productos/proveedores/', proveedor);
+    return data;
+  },
+  updateProveedor: async (id: string, proveedor: Partial<Proveedor>): Promise<Proveedor> => {
+    const { data } = await apiClient.put<Proveedor>(`/productos/proveedores/${id}/`, proveedor);
+    return data;
+  },
+  deleteProveedor: async (id: string): Promise<void> => {
+    await apiClient.delete(`/productos/proveedores/${id}/`);
+  },
+  getChequeos: async (): Promise<Producto[]> => {
+    const { data } = await apiClient.get<Producto[]>('/productos/chequeos/');
+    return Array.isArray(data) ? data : [];
+  },
   uploadExcel: async (file: File) => {
     const formData = new FormData();
     formData.append('archivo', file);
@@ -277,6 +301,10 @@ export const api = {
   },
   createReporte: async (reporte: any): Promise<Reporte> => {
     const { data } = await apiClient.post<{ success: boolean; data: Reporte }>('/reportes/create/', reporte);
+    return data.data;
+  },
+  updateReporte: async (reporteId: string, reporte: any): Promise<Reporte> => {
+    const { data } = await apiClient.put<{ success: boolean; data: Reporte }>(`/reportes/${reporteId}/`, reporte);
     return data.data;
   },
   getReporteByOrderId: async (ordenId: string): Promise<Reporte> => {

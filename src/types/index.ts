@@ -82,6 +82,8 @@ export interface Orden {
   problemas?: ProblemaEquipo[];
   tiene_ficha_tecnica?: boolean;
   reporte_id?: string | null;
+  esta_facturado?: boolean;
+  factura?: Venta | null;
 }
 
 export interface OrdenesPaginadasResponse {
@@ -92,6 +94,17 @@ export interface OrdenesPaginadasResponse {
   siguiente_lote: string | null;
   lote_anterior: string | null;
   ordenes: Orden[];
+}
+
+export interface Proveedor {
+  id: string;
+  nombre_o_razon_social: string;
+  ruc_cedula?: string;
+  telefono?: string;
+  nombre_contacto?: string;
+  numero_cuenta?: string;
+  activo?: boolean;
+  fecha_registro?: string;
 }
 
 export type ItemTipo = 'PRODUCTO' | 'SERVICIO';
@@ -111,12 +124,21 @@ export interface Producto {
   imagen_base64?: string;
   tipo?: ItemTipo;
   tiempo_estimado_minutos?: number;
+  proveedor?: string;
+  proveedor_detalle?: Proveedor;
+  es_chequeo?: boolean;
 }
+
+export type CotizacionItemEstado = 'COTIZADO' | 'RECHAZADO';
 
 export interface TrabajoRealizado {
   id?: string;
   descripcion: string;
   costo: number | string;
+  costo_proveedor?: number | string;
+  proveedor?: string;
+  proveedor_detalle?: Proveedor;
+  estado?: CotizacionItemEstado;
 }
 
 export interface RepuestoUtilizado {
@@ -125,7 +147,13 @@ export interface RepuestoUtilizado {
   cantidad: number;
   precio_unitario: number | string;
   subtotal?: number | string;
+  costo_unitario_proveedor?: number | string;
+  proveedor?: string;
+  proveedor_detalle?: Proveedor;
+  estado?: CotizacionItemEstado;
 }
+
+export type EstadoCotizacion = 'PENDIENTE' | 'ACEPTADO' | 'RECHAZADO';
 
 export interface Reporte {
   id: string;
@@ -134,11 +162,20 @@ export interface Reporte {
   fecha_creacion: string;
   persona_a_cargo?: string;
   observaciones?: string;
+  diagnostico_problemas?: string;
+  tipo_chequeo?: string;
+  tipo_chequeo_detalle?: Producto;
+  precio_chequeo?: number | string;
+  estado_cotizacion?: EstadoCotizacion;
   trabajos_realizados: TrabajoRealizado[];
   repuestos_utilizados: RepuestoUtilizado[];
   total_trabajos?: number;
   total_repuestos?: number;
   total_general?: number;
+  total_aceptado?: number;
+  total_rechazado?: number;
+  esta_facturado?: boolean;
+  factura?: Venta | null;
 }
 
 export interface DashboardStats {
@@ -174,12 +211,17 @@ export interface Venta {
   metodo_pago: string;
   usuario?: string;
   estado: string;
+  orden?: string | Orden;
+  reporte?: string | Reporte;
   detalles?: DetalleVenta[];
 }
 
 export interface CreateVentaItem {
   producto_id?: string;
   codigo: string;
+  nombre?: string;
+  nombre_producto?: string;
+  tipo?: 'PRODUCTO' | 'SERVICIO';
   cantidad: number;
   precio_unitario: number;
   impuesto_porcentaje?: number;
@@ -192,6 +234,8 @@ export interface CreateVentaPayload {
   cliente_telefono?: string;
   cliente_direccion?: string;
   metodo_pago: string;
+  orden_id?: string;
+  reporte_id?: string;
   items: CreateVentaItem[];
 }
 

@@ -51,3 +51,5 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 );
 
 Input.displayName = 'Input';
+
+export { NumericInput, type NumericInputProps } from './NumericInput';

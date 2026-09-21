@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCachedQuery } from '../../hooks/useCachedQuery';
 import { api } from '../../api/client';
-import { Producto } from '../../types';
+import { Producto, Proveedor } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+import { Input, NumericInput } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
+import { ProveedoresModal } from '../../components/proveedores/ProveedoresModal';
 import { useScannerConfig } from '../../context/ScannerContext';
 import {
   lookupProductByBarcode,
@@ -34,7 +35,11 @@ import {
   Clock,
   Wrench,
   Settings,
+  Truck,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
+import { AdminAuthModal } from '../../components/auth/AdminAuthModal';
 
 export interface ProductosPageProps {
   activeTipo?: 'PRODUCTO' | 'SERVICIO';
@@ -51,6 +56,11 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProveedoresModalOpen, setIsProveedoresModalOpen] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return sessionStorage.getItem('catalogo_admin_unlocked') === 'true';
+  });
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -84,6 +94,8 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
     impuesto: 15,
     tipo: activeTipo,
     tiempo_estimado_minutos: isService ? 60 : 0,
+    proveedor: '',
+    es_chequeo: false,
   });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -91,6 +103,12 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
     queryKey: ['productos'],
     queryFn: api.getProductos,
     keyField: 'codigo',
+  });
+
+  const { data: proveedores = [] } = useCachedQuery<Proveedor[]>({
+    queryKey: ['proveedores'],
+    queryFn: api.getProveedores,
+    keyField: 'id',
   });
 
   // PATRÓN DE DISEÑO OBSERVER: Suscribir este componente como Observador al ScannerSubject
@@ -315,6 +333,42 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
     );
   });
 
+  if (!isUnlocked) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[65vh] p-6 text-center animate-fadeIn max-w-xl mx-auto">
+        <div className="w-16 h-16 rounded-3xl bg-[#3498db]/15 border border-[#3498db]/30 flex items-center justify-center text-[#3498db] mb-4 shadow-lg shadow-[#3498db]/15">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          Catálogo & Tarifas Protegido
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+          Esta sección contiene la gestión de inventario, {isService ? 'servicios técnicos' : 'productos y repuestos'} y tarifas de precios. Para evitar modificaciones no autorizadas por parte de empleados, ingresa la clave de administrador para acceder:
+        </p>
+        <Button
+          onClick={() => setAuthModalOpen(true)}
+          className="mt-6 bg-[#3498db] hover:bg-[#2980b9] text-white font-bold flex items-center gap-2 px-6 py-2.5 rounded-xl shadow-lg shadow-[#3498db]/25"
+        >
+          <KeyRound className="w-4 h-4" />
+          <span>Ingresar Clave de Administrador</span>
+        </Button>
+
+        <AdminAuthModal
+          isOpen={authModalOpen}
+          onClose={() => {
+            setAuthModalOpen(false);
+            if (onNavigate) onNavigate('dashboard');
+          }}
+          onSuccess={() => {
+            setIsUnlocked(true);
+            setAuthModalOpen(false);
+          }}
+          targetSectionName={isService ? 'Servicios Técnicos' : 'Productos y Repuestos'}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-fadeIn">
       {/* Header with Search and Actions */}
@@ -329,6 +383,19 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              sessionStorage.removeItem('catalogo_admin_unlocked');
+              setIsUnlocked(false);
+              if (onNavigate) onNavigate('dashboard');
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 text-xs font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition-colors"
+            title="Cerrar sesión de administrador y bloquear catálogo"
+          >
+            <Lock className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Bloquear Catálogo</span>
+          </button>
           {!isService && (
             <>
               <input
@@ -349,6 +416,15 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
               </Button>
             </>
           )}
+
+          <Button
+            variant="outline"
+            leftIcon={<Truck className="w-4 h-4 text-[#3498db]" />}
+            onClick={() => setIsProveedoresModalOpen(true)}
+            className="border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold"
+          >
+            Proveedores ({proveedores.length})
+          </Button>
 
           <Button
             leftIcon={isService ? <Wrench className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
@@ -668,7 +744,7 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
             {/* SECCIÓN 1: IDENTIFICACIÓN DEL PRODUCTO / SERVICIO */}
             <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                <Tag className="w-3.5 h-3.5 text-[#3498db]" />
                 <span>{isService ? 'Identificación del Servicio' : 'Identificación del Artículo'}</span>
               </h4>
 
@@ -681,7 +757,7 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                     placeholder={isService ? 'Ej: SERV-MANT' : 'Ej: 7861024600018'}
                     value={formData.codigo}
                     onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                    leftIcon={<Hash className="w-4 h-4" />}
+                    leftIcon={<Hash className="w-4 h-4 text-slate-400" />}
                     className="font-mono"
                     required
                   />
@@ -699,7 +775,7 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                     }
                     value={formData.nombre}
                     onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    leftIcon={isService ? <Wrench className="w-4 h-4 text-amber-500" /> : <Tag className="w-4 h-4" />}
+                    leftIcon={isService ? <Wrench className="w-4 h-4 text-[#3498db]" /> : <Tag className="w-4 h-4 text-[#3498db]" />}
                     required
                   />
                 </div>
@@ -718,7 +794,7 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                   }
                   value={formData.descripcion || ''}
                   onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#3498db]"
                 />
               </div>
             </div>
@@ -727,12 +803,12 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
             <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                  <TrendingUp className="w-3.5 h-3.5 text-[#3498db]" />
                   <span>{isService ? 'Tarifas y Duración Estimada' : 'Control de Inventario y Precios'}</span>
                 </h4>
 
                 {pvp > 0 && costo > 0 && (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono text-[11px] font-bold">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#3498db]/10 border border-[#3498db]/30 text-[#3498db] font-mono text-[11px] font-bold">
                     <span>Margen: +{margenPorcentaje}%</span>
                     <span>(+${ganancia.toFixed(2)})</span>
                   </div>
@@ -744,23 +820,22 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                   <div>
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1 flex items-center justify-between">
                       <span>Tiempo Estimado *</span>
-                      <span className="text-amber-500 font-mono font-bold">
+                      <span className="text-[#3498db] font-mono font-bold">
                         {formatMinutes(formData.tiempo_estimado_minutos)}
                       </span>
                     </label>
-                    <Input
-                      type="number"
-                      min="5"
-                      step="5"
+                    <NumericInput
+                      allowDecimals={false}
+                      min={5}
                       placeholder="60"
                       value={formData.tiempo_estimado_minutos || 60}
-                      onChange={(e) =>
+                      onChange={(val) =>
                         setFormData({
                           ...formData,
-                          tiempo_estimado_minutos: parseInt(e.target.value) || 0,
+                          tiempo_estimado_minutos: val || 60,
                         })
                       }
-                      leftIcon={<Clock className="w-4 h-4 text-amber-500" />}
+                      leftIcon={<Clock className="w-4 h-4 text-[#3498db]" />}
                       required
                     />
                     <div className="flex items-center gap-1 mt-1.5 flex-wrap">
@@ -771,7 +846,7 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                           onClick={() => setFormData({ ...formData, tiempo_estimado_minutos: mins })}
                           className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-all ${
                             formData.tiempo_estimado_minutos === mins
-                              ? 'bg-amber-500 text-white shadow-sm'
+                              ? 'bg-[#3498db] text-white shadow-sm'
                               : 'bg-slate-200 dark:bg-slate-750 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
                           }`}
                         >
@@ -785,12 +860,12 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                     <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                       Stock Inicial (Uds)
                     </label>
-                    <Input
-                      type="number"
-                      min="0"
+                    <NumericInput
+                      allowDecimals={false}
+                      min={0}
                       placeholder="0"
                       value={formData.cantidad}
-                      onChange={(e) => setFormData({ ...formData, cantidad: parseInt(e.target.value) || 0 })}
+                      onChange={(val) => setFormData({ ...formData, cantidad: val })}
                     />
                   </div>
                 )}
@@ -799,13 +874,10 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                     {isService ? 'Costo Insumos / Base ($)' : 'Costo Compra ($)'}
                   </label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <NumericInput
                     placeholder="0.00"
                     value={formData.costo_compra}
-                    onChange={(e) => setFormData({ ...formData, costo_compra: parseFloat(e.target.value) || 0 })}
+                    onChange={(val) => setFormData({ ...formData, costo_compra: val })}
                   />
                 </div>
 
@@ -813,21 +885,17 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1">
                     {isService ? 'Tarifa al Cliente ($) *' : 'Precio de Venta al Público (PVP) ($) *'}
                   </label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <NumericInput
                     placeholder="0.00"
                     value={formData.precio_venta_sugerido}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
+                    onChange={(val) => {
                       setFormData({
                         ...formData,
                         precio_venta_sugerido: val,
                         precio_venta_recomendado: val,
                       });
                     }}
-                    className="font-bold text-emerald-600 dark:text-emerald-400"
+                    className="font-bold text-[#3498db]"
                     required
                   />
                 </div>
@@ -847,6 +915,46 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
                     <option value="8">8% (Turismo)</option>
                   </select>
                 </div>
+
+                <div className="sm:col-span-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1 flex items-center justify-between">
+                    <span>{isService ? 'Proveedor / Taller Externo (Para Reventa/Tercerización)' : 'Proveedor del Artículo'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsProveedoresModalOpen(true)}
+                      className="text-[10px] text-[#3498db] hover:underline flex items-center gap-1 font-bold"
+                    >
+                      <PlusCircle className="w-3 h-3" /> Nuevo Proveedor
+                    </button>
+                  </label>
+                  <select
+                    value={formData.proveedor || ''}
+                    onChange={(e) => setFormData({ ...formData, proveedor: e.target.value || undefined })}
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs py-2 px-3 font-semibold focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 shadow-sm"
+                  >
+                    <option value="">-- Sin Proveedor Asignado / Servicio Interno Directo --</option>
+                    {proveedores.map((prov) => (
+                      <option key={prov.id} value={prov.id}>
+                        {prov.nombre_o_razon_social} {prov.ruc_cedula ? `(${prov.ruc_cedula})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {isService && (
+                  <div className="sm:col-span-3 flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      id="es_chequeo"
+                      checked={Boolean(formData.es_chequeo)}
+                      onChange={(e) => setFormData({ ...formData, es_chequeo: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#3498db] focus:ring-[#3498db] border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    />
+                    <label htmlFor="es_chequeo" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      ¿Este servicio corresponde a un tipo de chequeo técnico / revisión diagnóstica?
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -873,6 +981,15 @@ export const ProductosPage: React.FC<ProductosPageProps> = ({
           </form>
         </div>
       </Modal>
+
+      {/* Modal de Proveedores */}
+      <ProveedoresModal
+        isOpen={isProveedoresModalOpen}
+        onClose={() => setIsProveedoresModalOpen(false)}
+        onSelectProveedor={(prov) => {
+          setFormData((prev) => ({ ...prev, proveedor: prov.id }));
+        }}
+      />
     </div>
   );
 };

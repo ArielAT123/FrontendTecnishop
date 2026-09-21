@@ -10,7 +10,10 @@ import {
   FileText,
   Settings,
   ChevronDown,
+  Lock,
+  Unlock,
 } from 'lucide-react';
+import { AdminAuthModal } from '../auth/AdminAuthModal';
 
 export type NavSection =
   | 'dashboard'
@@ -36,6 +39,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
   const [tallerOpen, setTallerOpen] = useState(true);
   const [servicioTecnicoOpen, setServicioTecnicoOpen] = useState(true);
   const [catalogoOpen, setCatalogoOpen] = useState(true);
+
+  // Control de seguridad con clave de administrador para Catálogo & Tarifas
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [pendingTargetSection, setPendingTargetSection] = useState<'productos' | 'servicios'>('productos');
+  const [isCatalogoUnlocked, setIsCatalogoUnlocked] = useState(() => {
+    return sessionStorage.getItem('catalogo_admin_unlocked') === 'true';
+  });
+
+  const handleNavigateCatalogo = (sec: 'productos' | 'servicios') => {
+    const isUnlocked = sessionStorage.getItem('catalogo_admin_unlocked') === 'true';
+    if (isUnlocked) {
+      onNavigate(sec);
+    } else {
+      setPendingTargetSection(sec);
+      setAuthModalOpen(true);
+    }
+  };
+
+  const handleToggleLock = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isCatalogoUnlocked) {
+      sessionStorage.removeItem('catalogo_admin_unlocked');
+      setIsCatalogoUnlocked(false);
+      if (currentSection === 'productos' || currentSection === 'servicios') {
+        onNavigate('dashboard');
+      }
+    } else {
+      setPendingTargetSection('productos');
+      setAuthModalOpen(true);
+    }
+  };
 
   // Auto-expand group if current section is inside that group
   useEffect(() => {
@@ -236,64 +270,87 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
         {/* COLLAPSIBLE GROUP 3: Catálogo y Tarifas                  */}
         {/* ======================================================== */}
         <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => setCatalogoOpen(!catalogoOpen)}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
-              isCatalogoActive
-                ? 'text-white bg-white/10 font-semibold'
-                : 'text-slate-200 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group cursor-pointer hover:bg-white/5">
+            <div
+              onClick={() => setCatalogoOpen(!catalogoOpen)}
+              className="flex items-center gap-3 flex-1 text-slate-200 hover:text-white"
+            >
               <Package
                 className={`w-5 h-5 transition-colors ${
                   isCatalogoActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
                 }`}
               />
-              <span>Catálogo & Tarifas</span>
+              <span className={isCatalogoActive ? 'text-white font-semibold' : ''}>Catálogo & Tarifas</span>
             </div>
-            <ChevronDown
-              className={`w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-transform duration-200 ${
-                catalogoOpen ? 'rotate-180 text-blue-300' : ''
-              }`}
-            />
-          </button>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleLock}
+                className="p-1 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                title={isCatalogoUnlocked ? 'Modo Admin desbloqueado (Click para bloquear)' : 'Catálogo protegido por clave de administrador'}
+              >
+                {isCatalogoUnlocked ? (
+                  <Unlock className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCatalogoOpen(!catalogoOpen)}
+                className="p-1 text-slate-400 hover:text-white transition-colors"
+              >
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    catalogoOpen ? 'rotate-180 text-blue-300' : ''
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
 
           {catalogoOpen && (
             <div className="ml-5 pl-3 border-l-2 border-slate-700/60 space-y-1 py-1.5">
               <button
                 type="button"
-                onClick={() => onNavigate('productos')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
+                onClick={() => handleNavigateCatalogo('productos')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
                   currentSection === 'productos'
                     ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Package
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'productos' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Productos y Repuestos</span>
+                <div className="flex items-center gap-2.5">
+                  <Package
+                    className={`w-4 h-4 transition-colors ${
+                      currentSection === 'productos' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                    }`}
+                  />
+                  <span>Productos y Repuestos</span>
+                </div>
+                {!isCatalogoUnlocked && <Lock className="w-3 h-3 text-slate-400 opacity-60" />}
               </button>
 
               <button
                 type="button"
-                onClick={() => onNavigate('servicios')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
+                onClick={() => handleNavigateCatalogo('servicios')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
                   currentSection === 'servicios'
                     ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Wrench
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'servicios' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Servicios Técnicos</span>
+                <div className="flex items-center gap-2.5">
+                  <Wrench
+                    className={`w-4 h-4 transition-colors ${
+                      currentSection === 'servicios' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                    }`}
+                  />
+                  <span>Servicios Técnicos</span>
+                </div>
+                {!isCatalogoUnlocked && <Lock className="w-3 h-3 text-slate-400 opacity-60" />}
               </button>
             </div>
           )}
@@ -330,6 +387,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
           </p>
         </div>
       </div>
+
+      {/* Modal de Autenticación de Administrador para Catálogo & Tarifas */}
+      <AdminAuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={() => {
+          setIsCatalogoUnlocked(true);
+          setAuthModalOpen(false);
+          onNavigate(pendingTargetSection);
+        }}
+        targetSectionName={pendingTargetSection === 'productos' ? 'Productos y Repuestos' : 'Servicios Técnicos'}
+      />
     </aside>
   );
 };

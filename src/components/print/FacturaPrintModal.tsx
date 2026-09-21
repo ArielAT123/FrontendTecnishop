@@ -40,18 +40,18 @@ export const FacturaPrintModal: React.FC<FacturaPrintModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden animate-fadeIn">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden animate-fadeIn">
         {/* Header Toolbar (no-print) */}
-        <div className="h-16 px-6 bg-slate-800 border-b border-slate-700 flex items-center justify-between shrink-0 no-print">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30">
+        <div className="h-16 px-6 bg-slate-800 border-b border-slate-700 flex items-center justify-between shrink-0 no-print gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30 shrink-0">
               <CheckCircle className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="font-bold text-white text-base">
+            <div className="min-w-0">
+              <h3 className="font-bold text-white text-base truncate">
                 Venta Realizada &bull; Factura {venta.numero_factura}
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 truncate">
                 Inventario descontado con éxito en la base de datos
               </p>
             </div>
@@ -117,7 +117,7 @@ export const FacturaPrintModal: React.FC<FacturaPrintModalProps> = ({
             <div
               ref={printRef}
               id="factura-print-container"
-              className="w-[190mm] bg-white text-black p-6 shadow-2xl rounded-sm font-sans text-xs border border-slate-300"
+              className="w-[210mm] max-w-full bg-white text-black p-8 shadow-2xl rounded-sm font-sans text-xs border border-slate-300"
             >
               {/* Header */}
               <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-4">
@@ -176,10 +176,10 @@ export const FacturaPrintModal: React.FC<FacturaPrintModalProps> = ({
                 <thead>
                   <tr className="bg-slate-200">
                     <th className="border border-black p-2 text-center w-[12%] font-bold">CÓDIGO</th>
-                    <th className="border border-black p-2 text-center w-[10%] font-bold">CANT.</th>
-                    <th className="border border-black p-2 text-left w-[48%] font-bold">DESCRIPCIÓN DEL ARTÍCULO</th>
-                    <th className="border border-black p-2 text-right w-[15%] font-bold">P. UNIT</th>
-                    <th className="border border-black p-2 text-right w-[15%] font-bold">TOTAL</th>
+                    <th className="border border-black p-2 text-center w-[8%] font-bold">CANT.</th>
+                    <th className="border border-black p-2 text-left w-[56%] font-bold">DESCRIPCIÓN DEL ARTÍCULO</th>
+                    <th className="border border-black p-2 text-right w-[12%] font-bold">P. UNIT</th>
+                    <th className="border border-black p-2 text-right w-[12%] font-bold">TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>

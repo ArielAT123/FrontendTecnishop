@@ -22,6 +22,7 @@ import {
   Printer,
   Eye,
   AlertCircle,
+  AlertTriangle,
   Clock,
   Sparkles,
   Settings,
@@ -53,10 +54,23 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
   const [searchManual, setSearchManual] = useState('');
   const [scanStatusMessage, setScanStatusMessage] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [incompleteCartModal, setIncompleteCartModal] = useState<string[] | null>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Pos Prefill from Ficha Tecnica
+  interface PosPrefillData {
+    ordenId?: string;
+    reporteId?: string;
+    numeroOrden?: string;
+    clienteCi?: string;
+    clienteNombre?: string;
+    clienteTelefono?: string;
+    items?: CartItem[];
+  }
+  const [posPrefill, setPosPrefill] = useState<PosPrefillData | null>(null);
 
   // Checkout State
   const [clienteTipo, setClienteTipo] = useState<'consumidor_final' | 'registrado'>('consumidor_final');
@@ -87,6 +101,36 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
     queryFn: () => api.getVentas(),
     keyField: 'id',
   });
+
+  // Load Prefill from Ficha Técnica if present (consumed once)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('tecnishop_pos_prefill');
+      if (raw) {
+        sessionStorage.removeItem('tecnishop_pos_prefill');
+        const data: PosPrefillData = JSON.parse(raw);
+        setPosPrefill(data);
+
+        // Cargar ítems al carrito
+        if (data.items && data.items.length > 0) {
+          setCart(data.items);
+        }
+      }
+    } catch (e) {
+      console.error('Error al cargar datos precargados de ficha técnica', e);
+    }
+  }, []);
+
+  // Preseleccionar cliente cuando los clientes estén disponibles
+  useEffect(() => {
+    if (posPrefill?.clienteCi && clientes.length > 0) {
+      const found = clientes.find((c) => c.ci === posPrefill.clienteCi);
+      if (found) {
+        setSelectedCliente(found);
+        setClienteTipo('registrado');
+      }
+    }
+  }, [posPrefill, clientes]);
 
   // Focus scanner input on mount and tab switch
   useEffect(() => {
@@ -288,9 +332,14 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
   // Clear cart
   const clearCart = () => {
     setCart([]);
+    setPosPrefill(null);
+    setSelectedCliente(null);
+    setClienteTipo('consumidor_final');
+    setClienteSearch('');
     setMontoRecibido('');
     setScanError(null);
     setScanStatusMessage(null);
+    sessionStorage.removeItem('tecnishop_pos_prefill');
   };
 
   // Calculation totals
@@ -316,10 +365,15 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
   const createSaleMutation = useMutation({
     mutationFn: (payload: CreateVentaPayload) => api.createVenta(payload),
     onSuccess: (ventaCreada) => {
-      // Invalidate both products (stock updated) and sales history
+      // Invalidate products, sales history, orders and reports
       queryClient.invalidateQueries({ queryKey: ['productos'] });
       queryClient.invalidateQueries({ queryKey: ['ventas'] });
+      queryClient.invalidateQueries({ queryKey: ['ordenes'] });
+      queryClient.invalidateQueries({ queryKey: ['reportes'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
+      sessionStorage.removeItem('tecnishop_pos_prefill');
+      setPosPrefill(null);
 
       setEmittedVenta(ventaCreada);
       setIsFacturaModalOpen(true);
@@ -336,21 +390,49 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
       return;
     }
 
+    // Validar que ningún producto o servicio en el carrito esté incompleto
+    const incompleteCartItems: string[] = [];
+    cart.forEach((item, idx) => {
+      const nom = item.producto.nombre || item.producto.codigo || `Ítem #${idx + 1}`;
+      if (!item.producto.nombre || !item.producto.nombre.trim()) {
+        incompleteCartItems.push(`Ítem #${idx + 1}: Falta ingresar la descripción o nombre del producto/servicio.`);
+      }
+      if (!item.producto.codigo || !item.producto.codigo.trim()) {
+        incompleteCartItems.push(`Ítem #${idx + 1} (${nom}): Falta asignar un código identificador.`);
+      }
+      if (isNaN(Number(item.precio_unitario)) || Number(item.precio_unitario) < 0) {
+        incompleteCartItems.push(`Ítem #${idx + 1} (${nom}): El precio unitario es inválido.`);
+      }
+      if (isNaN(Number(item.cantidad)) || Number(item.cantidad) <= 0) {
+        incompleteCartItems.push(`Ítem #${idx + 1} (${nom}): La cantidad debe ser al menos 1 unidad.`);
+      }
+    });
+
+    if (incompleteCartItems.length > 0) {
+      setIncompleteCartModal(incompleteCartItems);
+      return;
+    }
+
     const payload: CreateVentaPayload = {
-      cliente_ci: clienteTipo === 'registrado' && selectedCliente ? selectedCliente.ci : undefined,
+      cliente_ci: clienteTipo === 'registrado' && selectedCliente ? selectedCliente.ci : posPrefill?.clienteCi,
       cliente_nombre:
         clienteTipo === 'registrado' && selectedCliente
           ? `${selectedCliente.nombre} ${selectedCliente.apellido || ''}`.trim()
-          : 'CONSUMIDOR FINAL',
+          : posPrefill?.clienteNombre || 'CONSUMIDOR FINAL',
       cliente_identificacion:
-        clienteTipo === 'registrado' && selectedCliente ? selectedCliente.ci : '9999999999999',
+        clienteTipo === 'registrado' && selectedCliente ? selectedCliente.ci : (posPrefill?.clienteCi || '9999999999999'),
       cliente_telefono:
-        clienteTipo === 'registrado' && selectedCliente ? selectedCliente.telefono : undefined,
+        clienteTipo === 'registrado' && selectedCliente ? selectedCliente.telefono : posPrefill?.clienteTelefono,
       cliente_direccion: undefined,
       metodo_pago: metodoPago,
+      orden_id: posPrefill?.ordenId,
+      reporte_id: posPrefill?.reporteId,
       items: cart.map((item) => ({
         producto_id: item.producto.id,
         codigo: item.producto.codigo,
+        nombre: item.producto.nombre,
+        nombre_producto: item.producto.nombre,
+        tipo: item.producto.tipo,
         cantidad: item.cantidad,
         precio_unitario: item.precio_unitario,
         impuesto_porcentaje: item.impuesto_porcentaje,
@@ -368,7 +450,7 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
             p.nombre.toLowerCase().includes(searchManual.toLowerCase()) ||
             p.codigo.toLowerCase().includes(searchManual.toLowerCase())
         )
-        .slice(0, 6)
+        .slice(0, 8)
     : [];
 
   // Filtered clients for selector
@@ -384,28 +466,41 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
     : [];
 
   return (
-    <div className="space-y-5 animate-fadeIn select-none">
-      {/* Top Tabs Bar */}
-      <div className="flex items-center justify-end">
-        <div className="flex bg-slate-200/80 dark:bg-slate-800/70 p-1 rounded-xl text-xs font-bold border border-slate-300/80 dark:border-slate-700/60">
+    <div className="space-y-5 max-w-7xl mx-auto animate-fadeIn">
+      {/* Top Bar with Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-[#3498db]" />
+            <span>Punto de Venta (POS) & Facturación</span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {activeTab === 'pos'
+              ? 'Emite notas de venta o facturas comerciales a clientes'
+              : 'Consulta facturas emitidas, reimprime comprobantes y audita totales'}
+          </p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => setActiveTab('pos')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'pos'
-                ? 'bg-[#3498db] text-white shadow-md shadow-[#3498db]/30'
+                ? 'bg-[#3498db] text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Barcode className="w-4 h-4" />
-            <span>Nueva Venta</span>
+            <Sparkles className="w-4 h-4" />
+            <span>Facturar (POS)</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === 'history'
-                ? 'bg-[#3498db] text-white shadow-md shadow-[#3498db]/30'
+                ? 'bg-[#3498db] text-white shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -417,6 +512,37 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
           </button>
         </div>
       </div>
+
+      {/* Banner de Facturación desde Ficha Técnica */}
+      {posPrefill && activeTab === 'pos' && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-blue-500/15 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <Receipt className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-sm">
+                Facturación de Orden #{posPrefill.numeroOrden || posPrefill.ordenId?.slice(0, 8)} (Ficha Técnica)
+              </p>
+              <p className="text-xs text-blue-100">
+                Cliente: <span className="font-semibold text-white">{posPrefill.clienteNombre}</span> &bull; {cart.length} ítem(s) cargados para facturar
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onNavigate?.('reportes');
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/30 text-xs font-bold h-9"
+            >
+              ← Volver a Ficha Técnica
+            </Button>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'pos' ? (
         /* ======================== VISTA POS / NUEVA VENTA ======================== */
@@ -545,7 +671,7 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
               </div>
 
               {/* Quick Results Drawer */}
-              {filteredManualProducts.length > 0 && (
+              {searchManual.trim().length > 0 && filteredManualProducts.length > 0 && (
                 <div className="mt-2 p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1 animate-fadeIn shadow-lg">
                   <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 px-2">Resultados coincidentes:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -664,12 +790,28 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
                                   <Minus className="w-3.5 h-3.5" />
                                 </button>
                                 <input
-                                  type="number"
-                                  min="1"
-                                  max={item.producto.tipo === 'SERVICIO' ? 999 : item.producto.cantidad}
-                                  value={item.cantidad}
-                                  onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                                  className="w-12 text-center bg-transparent text-xs font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="1"
+                                  value={item.cantidad === 0 ? '' : item.cantidad}
+                                  onChange={(e) => {
+                                    let raw = e.target.value.replace(/[^0-9]/g, '');
+                                    if (raw === '') {
+                                      updateQuantity(index, 0);
+                                      return;
+                                    }
+                                    if (/^0+[0-9]/.test(raw)) {
+                                      raw = raw.replace(/^0+/, '');
+                                    }
+                                    const max = item.producto.tipo === 'SERVICIO' ? 999 : item.producto.cantidad;
+                                    let val = parseInt(raw) || 0;
+                                    if (val > max) val = max;
+                                    updateQuantity(index, val);
+                                  }}
+                                  onBlur={() => {
+                                    if (item.cantidad < 1) updateQuantity(index, 1);
+                                  }}
+                                  className="w-12 text-center bg-transparent text-xs font-bold focus:outline-none"
                                 />
                                 <button
                                   onClick={() => updateQuantity(index, item.cantidad + 1)}
@@ -683,12 +825,27 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
                               <div className="inline-flex items-center justify-end border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900 shadow-sm focus-within:ring-2 focus-within:ring-[#3498db]/40">
                                 <span className="text-slate-400 font-mono text-xs font-semibold mr-1">$</span>
                                 <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.precio_unitario}
-                                  onChange={(e) => updateUnitPrice(index, parseFloat(e.target.value) || 0)}
-                                  className="w-16 text-right font-mono font-bold bg-transparent text-slate-900 dark:text-slate-100 text-xs focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  type="text"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                  value={item.precio_unitario === 0 ? '' : item.precio_unitario}
+                                  onChange={(e) => {
+                                    let raw = e.target.value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+                                    const parts = raw.split('.');
+                                    if (parts.length > 2) {
+                                      raw = parts[0] + '.' + parts.slice(1).join('');
+                                    }
+                                    if (/^0+[0-9]/.test(raw)) {
+                                      raw = raw.replace(/^0+/, '');
+                                    }
+                                    if (raw === '') {
+                                      updateUnitPrice(index, 0);
+                                      return;
+                                    }
+                                    const val = parseFloat(raw);
+                                    updateUnitPrice(index, isNaN(val) ? 0 : val);
+                                  }}
+                                  className="w-16 text-right font-mono font-bold bg-transparent text-slate-900 dark:text-slate-100 text-xs focus:outline-none"
                                   title="Precio unitario de venta (editable)"
                                 />
                               </div>
@@ -1038,6 +1195,52 @@ export const VentasPage: React.FC<VentasPageProps> = ({ onNavigate }) => {
           ensureScannerFocused();
         }}
       />
+
+      {/* Modal Bloqueante: Productos o Servicios Incompletos al Facturar */}
+      {incompleteCartModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800/60 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-scaleIn">
+            <div className="p-6 bg-gradient-to-b from-amber-50 dark:from-amber-950/20 to-transparent border-b border-amber-100 dark:border-amber-900/40">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
+                    No se puede emitir esta factura si hay productos o servicios que faltan por completar
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Se detectaron los siguientes ítems con información incompleta o vacía:
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 max-h-72 overflow-y-auto space-y-2.5">
+              {incompleteCartModal.map((errText, i) => (
+                <div
+                  key={i}
+                  className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200"
+                >
+                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="font-medium leading-relaxed">{errText}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <Button
+                onClick={() => setIncompleteCartModal(null)}
+                className="bg-[#3498db] hover:bg-[#2980b9] text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md shadow-[#3498db]/20"
+              >
+                Entendido, ir a completar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

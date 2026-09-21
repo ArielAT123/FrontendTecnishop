@@ -76,6 +76,7 @@ const MainRouter: React.FC = () => {
               <ReportesPage
                 selectedOrder={selectedOrderForReport}
                 onClearSelectedOrder={() => setSelectedOrderForReport(null)}
+                onNavigate={onNavigate}
               />
             );
           case 'configuracion':

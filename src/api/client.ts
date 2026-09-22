@@ -319,6 +319,17 @@ export const api = {
     const { data } = await apiClient.get<{ success: boolean; data: any[] }>(`/reportes/autocomplete/repuestos/?q=${encodeURIComponent(query)}`);
     return data.data || [];
   },
+  getCotizaciones: async (estado: string = 'PENDIENTES', search: string = ''): Promise<Reporte[]> => {
+    const params = new URLSearchParams();
+    if (estado) params.append('estado', estado);
+    if (search) params.append('search', search);
+    const { data } = await apiClient.get<{ success: boolean; data: Reporte[] }>(`/reportes/cotizaciones/?${params.toString()}`);
+    return data.data || [];
+  },
+  guardarCotizacionItems: async (reporteId: string, payload: { repuestos?: any[]; trabajos?: any[] }): Promise<{ success: boolean; message: string; cotizacion_completada: boolean; reporte: Reporte }> => {
+    const { data } = await apiClient.post<{ success: boolean; message: string; cotizacion_completada: boolean; reporte: Reporte }>(`/reportes/cotizaciones/${reporteId}/guardar/`, payload);
+    return data;
+  },
 
   // Ventas y POS
   getProductoByCodigo: async (codigo: string): Promise<Producto> => {

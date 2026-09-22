@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ScannerProvider } from './context/ScannerContext';
+import { WhatsAppStatusProvider } from './context/WhatsAppStatusContext';
 import { LoginPage } from './pages/login/LoginPage';
 import { Layout } from './components/layout/Layout';
 import { NavSection } from './components/layout/Sidebar';
@@ -13,6 +14,7 @@ import { ClientesPage } from './pages/clientes/ClientesPage';
 import { EquiposPage } from './pages/equipos/EquiposPage';
 import { ProductosPage } from './pages/productos/ProductosPage';
 import { ReportesPage } from './pages/reportes/ReportesPage';
+import { CotizacionesPage } from './pages/cotizaciones/CotizacionesPage';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { Orden } from './types';
 import { Wrench } from 'lucide-react';
@@ -79,6 +81,8 @@ const MainRouter: React.FC = () => {
                 onNavigate={onNavigate}
               />
             );
+          case 'cotizaciones':
+            return <CotizacionesPage onNavigate={onNavigate} />;
           case 'configuracion':
             return <ConfiguracionPage />;
           default:
@@ -95,7 +99,9 @@ export const App: React.FC = () => {
       <ThemeProvider>
         <AuthProvider>
           <ScannerProvider>
-            <MainRouter />
+            <WhatsAppStatusProvider>
+              <MainRouter />
+            </WhatsAppStatusProvider>
           </ScannerProvider>
         </AuthProvider>
       </ThemeProvider>

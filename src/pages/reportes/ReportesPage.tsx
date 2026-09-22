@@ -54,7 +54,11 @@ import {
   Layers,
   Cpu,
   Receipt,
+  Plus,
+  Calculator,
 } from 'lucide-react';
+import { WhatsAppIcon } from '../../components/common/WhatsAppIcon';
+import { documentNotificationService } from '../../services/documentNotificationService';
 
 interface ReportesPageProps {
   selectedOrder?: Orden | null;
@@ -227,11 +231,110 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
   const [reportesSearch, setReportesSearch] = useState('');
   const [expandedEquipos, setExpandedEquipos] = useState<Record<string, boolean>>({});
 
+  // WhatsApp Notification State
+  const [sendingInformeWhatsApp, setSendingInformeWhatsApp] = useState(false);
+  const [informeWhatsAppFeedback, setInformeWhatsAppFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  const handleSendInformeWhatsApp = async (rep: any) => {
+    if (!rep) return;
+    setSendingInformeWhatsApp(true);
+    setInformeWhatsAppFeedback(null);
+    try {
+      const res = await documentNotificationService.sendInforme(rep);
+      if (res.success) {
+        setInformeWhatsAppFeedback({
+          type: 'success',
+          message: '¡Informe técnico enviado con éxito al WhatsApp del cliente!',
+        });
+        setTimeout(() => setInformeWhatsAppFeedback(null), 5000);
+      } else {
+        setInformeWhatsAppFeedback({
+          type: 'error',
+          message: res.error || 'Error al enviar por WhatsApp',
+        });
+        setTimeout(() => setInformeWhatsAppFeedback(null), 6000);
+      }
+    } catch (err: any) {
+      setInformeWhatsAppFeedback({
+        type: 'error',
+        message: err.message || 'Error de comunicación con el servidor de mensajería',
+      });
+      setTimeout(() => setInformeWhatsAppFeedback(null), 6000);
+    } finally {
+      setSendingInformeWhatsApp(false);
+    }
+  };
+
   // Ficha Técnica Form State
   const [ordenId, setOrdenId] = useState<string>('');
   const [personaACargo, setPersonaACargo] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [diagnosticoProblemas, setDiagnosticoProblemas] = useState('');
+  const [diagnosticoProblemasList, setDiagnosticoProblemasList] = useState<string[]>(['']);
+  const problemaInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleProblemaChange = (index: number, value: string) => {
+    const updated = [...diagnosticoProblemasList];
+    updated[index] = value;
+    setDiagnosticoProblemasList(updated);
+    setDiagnosticoProblemas(updated.filter((p) => p.trim()).join('\n'));
+  };
+
+  const handleAddProblema = (atIndex?: number) => {
+    const targetIdx = atIndex !== undefined ? atIndex + 1 : diagnosticoProblemasList.length;
+    const updated = [...diagnosticoProblemasList];
+    updated.splice(targetIdx, 0, '');
+    setDiagnosticoProblemasList(updated);
+    setDiagnosticoProblemas(updated.filter((p) => p.trim()).join('\n'));
+    setTimeout(() => {
+      problemaInputRefs.current[targetIdx]?.focus();
+    }, 30);
+  };
+
+  const handleRemoveProblema = (index: number) => {
+    if (diagnosticoProblemasList.length <= 1) {
+      setDiagnosticoProblemasList(['']);
+      setDiagnosticoProblemas('');
+      problemaInputRefs.current[0]?.focus();
+      return;
+    }
+    const updated = diagnosticoProblemasList.filter((_, i) => i !== index);
+    setDiagnosticoProblemasList(updated);
+    setDiagnosticoProblemas(updated.filter((p) => p.trim()).join('\n'));
+    const prevIdx = Math.max(0, index - 1);
+    setTimeout(() => {
+      problemaInputRefs.current[prevIdx]?.focus();
+    }, 30);
+  };
+
+  const handleProblemaKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddProblema(index);
+    } else if (
+      e.key === 'Backspace' &&
+      !diagnosticoProblemasList[index] &&
+      diagnosticoProblemasList.length > 1
+    ) {
+      e.preventDefault();
+      handleRemoveProblema(index);
+    } else if (e.key === 'ArrowUp' && index > 0) {
+      e.preventDefault();
+      problemaInputRefs.current[index - 1]?.focus();
+    } else if (
+      e.key === 'ArrowDown' &&
+      index < diagnosticoProblemasList.length - 1
+    ) {
+      e.preventDefault();
+      problemaInputRefs.current[index + 1]?.focus();
+    }
+  };
   const [tipoChequeoId, setTipoChequeoId] = useState('');
   const [precioChequeo, setPrecioChequeo] = useState<number>(10);
 
@@ -344,6 +447,12 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
     queryKey: ['chequeos'],
     queryFn: api.getChequeos,
     keyField: 'codigo',
+  });
+
+  const { data: productosInventario = [] } = useCachedQuery<Producto[]>({
+    queryKey: ['productos'],
+    queryFn: api.getProductos,
+    keyField: 'id',
   });
 
   const { data: proveedores = [] } = useCachedQuery<Proveedor[]>({
@@ -519,6 +628,7 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
     setPersonaACargo('');
     setObservaciones('');
     setDiagnosticoProblemas('');
+    setDiagnosticoProblemasList(['']);
     if (chequeos.length > 0) {
       setTipoChequeoId(chequeos[0].id);
       setPrecioChequeo(Number(chequeos[0].precio_venta_sugerido || 10));
@@ -540,6 +650,11 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
     setPersonaACargo(rep.persona_a_cargo || '');
     setObservaciones(rep.observaciones || '');
     setDiagnosticoProblemas(rep.diagnostico_problemas || '');
+    const loadedProbs = (rep.diagnostico_problemas || '')
+      .split('\n')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    setDiagnosticoProblemasList(loadedProbs.length > 0 ? loadedProbs : ['']);
     setTipoChequeoId(rep.tipo_chequeo || (chequeos[0]?.id || ''));
     setPrecioChequeo(Number(rep.precio_chequeo || 10));
     setTrabajos(
@@ -761,43 +876,53 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
         // Escenario Aceptado: Cargar servicios y repuestos aceptados. Chequeo es $0 / Bonificado
         const acceptedTrabajos = trabajos
           .filter((t) => t.estado === 'COTIZADO' && t.descripcion.trim())
-          .map((t, idx) => ({
-            producto: {
-              id: 'srv-' + (t.id || idx),
-              codigo: 'SRV-' + String(idx + 1).padStart(3, '0'),
-              nombre: t.descripcion,
-              tipo: 'SERVICIO' as const,
-              precio_venta_sugerido: Number(t.costo),
-              precio_venta_recomendado: Number(t.costo),
-              costo_compra: Number(t.costo_proveedor || 0),
-              cantidad: 9999,
-              impuesto: 15,
-            },
-            cantidad: 1,
-            precio_unitario: Number(t.costo),
-            impuesto_porcentaje: 15,
-            subtotal: Number(t.costo),
-          }));
+          .map((t, idx) => {
+            const match = productosInventario.find(
+              (p) => p.nombre.trim().toLowerCase() === t.descripcion.trim().toLowerCase()
+            );
+            return {
+              producto: {
+                id: match ? match.id : 'srv-' + (t.id || idx),
+                codigo: match ? match.codigo : `COT-SRV-${String(idx + 1).padStart(3, '0')}-${Date.now().toString().slice(-4)}`,
+                nombre: t.descripcion,
+                tipo: 'SERVICIO' as const,
+                precio_venta_sugerido: Number(t.costo),
+                precio_venta_recomendado: Number(t.costo),
+                costo_compra: Number(t.costo_proveedor || 0),
+                cantidad: 9999,
+                impuesto: 15,
+              },
+              cantidad: 1,
+              precio_unitario: Number(t.costo),
+              impuesto_porcentaje: 15,
+              subtotal: Number(t.costo),
+            };
+          });
 
         const acceptedRepuestos = repuestos
           .filter((r) => r.estado === 'COTIZADO' && r.nombre_repuesto.trim())
-          .map((r, idx) => ({
-            producto: {
-              id: 'rep-' + (r.id || idx),
-              codigo: 'REP-' + String(idx + 1).padStart(3, '0'),
-              nombre: r.nombre_repuesto,
-              tipo: 'PRODUCTO' as const,
-              precio_venta_sugerido: Number(r.precio_unitario),
-              precio_venta_recomendado: Number(r.precio_unitario),
-              costo_compra: Number(r.costo_unitario_proveedor || 0),
-              cantidad: 9999,
-              impuesto: 15,
-            },
-            cantidad: Number(r.cantidad || 1),
-            precio_unitario: Number(r.precio_unitario),
-            impuesto_porcentaje: 15,
-            subtotal: Number(r.cantidad || 1) * Number(r.precio_unitario),
-          }));
+          .map((r, idx) => {
+            const match = productosInventario.find(
+              (p) => p.nombre.trim().toLowerCase() === r.nombre_repuesto.trim().toLowerCase()
+            );
+            return {
+              producto: {
+                id: match ? match.id : 'rep-' + (r.id || idx),
+                codigo: match ? match.codigo : `COT-REP-${String(idx + 1).padStart(3, '0')}-${Date.now().toString().slice(-4)}`,
+                nombre: r.nombre_repuesto,
+                tipo: 'PRODUCTO' as const,
+                precio_venta_sugerido: Number(r.precio_unitario),
+                precio_venta_recomendado: Number(r.precio_unitario),
+                costo_compra: Number(r.costo_unitario_proveedor || 0),
+                cantidad: match ? match.cantidad : 9999,
+                impuesto: 15,
+              },
+              cantidad: Number(r.cantidad || 1),
+              precio_unitario: Number(r.precio_unitario),
+              impuesto_porcentaje: 15,
+              subtotal: Number(r.cantidad || 1) * Number(r.precio_unitario),
+            };
+          });
 
         itemsParaPOS = [...acceptedTrabajos, ...acceptedRepuestos];
       } else {
@@ -856,6 +981,14 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
 
     const totAceptado = Number(rep.total_aceptado || 0);
 
+    // Validar si la cotización tiene campos faltantes que el admin debe completar
+    if (totAceptado > 0 && !rep.cotizacion_completada) {
+      setIncompleteItemsError([
+        'Admin debe llenar campos faltantes en cotización: Debes asignar proveedor y costo de compra a todos los repuestos cotizados antes de emitir la factura.'
+      ]);
+      return;
+    }
+
     // Validar completitud de ítems antes de proceder
     if (totAceptado > 0 || (rep.trabajos_realizados || []).some((t) => t.estado === 'COTIZADO') || (rep.repuestos_utilizados || []).some((r) => r.estado === 'COTIZADO')) {
       const issues = checkIncompleteCotizacion(rep.trabajos_realizados || [], rep.repuestos_utilizados || []);
@@ -873,44 +1006,54 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
 
     if (totAceptado > 0) {
       const trabajosAcc = (rep.trabajos_realizados || [])
-        .filter((t) => t.estado === 'COTIZADO')
-        .map((t, idx) => ({
-          producto: {
-            id: 'srv-' + idx,
-            codigo: 'SRV-' + String(idx + 1).padStart(3, '0'),
-            nombre: t.descripcion,
-            tipo: 'SERVICIO' as const,
-            precio_venta_sugerido: Number(t.costo),
-            precio_venta_recomendado: Number(t.costo),
-            costo_compra: Number(t.costo_proveedor || 0),
-            cantidad: 9999,
-            impuesto: 15,
-          },
-          cantidad: 1,
-          precio_unitario: Number(t.costo),
-          impuesto_porcentaje: 15,
-          subtotal: Number(t.costo),
-        }));
+        .filter((t) => t.estado === 'COTIZADO' && t.descripcion?.trim())
+        .map((t, idx) => {
+          const match = productosInventario.find(
+            (p) => p.nombre.trim().toLowerCase() === t.descripcion.trim().toLowerCase()
+          );
+          return {
+            producto: {
+              id: match ? match.id : 'srv-' + idx,
+              codigo: match ? match.codigo : `COT-SRV-${String(idx + 1).padStart(3, '0')}-${Date.now().toString().slice(-4)}`,
+              nombre: t.descripcion,
+              tipo: 'SERVICIO' as const,
+              precio_venta_sugerido: Number(t.costo),
+              precio_venta_recomendado: Number(t.costo),
+              costo_compra: Number(t.costo_proveedor || 0),
+              cantidad: 9999,
+              impuesto: 15,
+            },
+            cantidad: 1,
+            precio_unitario: Number(t.costo),
+            impuesto_porcentaje: 15,
+            subtotal: Number(t.costo),
+          };
+        });
 
       const repuestosAcc = (rep.repuestos_utilizados || [])
-        .filter((r) => r.estado === 'COTIZADO')
-        .map((r, idx) => ({
-          producto: {
-            id: 'rep-' + idx,
-            codigo: 'REP-' + String(idx + 1).padStart(3, '0'),
-            nombre: r.nombre_repuesto,
-            tipo: 'PRODUCTO' as const,
-            precio_venta_sugerido: Number(r.precio_unitario),
-            precio_venta_recomendado: Number(r.precio_unitario),
-            costo_compra: Number(r.costo_unitario_proveedor || 0),
-            cantidad: 9999,
-            impuesto: 15,
-          },
-          cantidad: Number(r.cantidad || 1),
-          precio_unitario: Number(r.precio_unitario),
-          impuesto_porcentaje: 15,
-          subtotal: Number(r.cantidad || 1) * Number(r.precio_unitario),
-        }));
+        .filter((r) => r.estado === 'COTIZADO' && r.nombre_repuesto?.trim())
+        .map((r, idx) => {
+          const match = productosInventario.find(
+            (p) => p.nombre.trim().toLowerCase() === r.nombre_repuesto.trim().toLowerCase()
+          );
+          return {
+            producto: {
+              id: match ? match.id : 'rep-' + idx,
+              codigo: match ? match.codigo : `COT-REP-${String(idx + 1).padStart(3, '0')}-${Date.now().toString().slice(-4)}`,
+              nombre: r.nombre_repuesto,
+              tipo: 'PRODUCTO' as const,
+              precio_venta_sugerido: Number(r.precio_unitario),
+              precio_venta_recomendado: Number(r.precio_unitario),
+              costo_compra: Number(r.costo_unitario_proveedor || 0),
+              cantidad: match ? match.cantidad : 9999,
+              impuesto: 15,
+            },
+            cantidad: Number(r.cantidad || 1),
+            precio_unitario: Number(r.precio_unitario),
+            impuesto_porcentaje: 15,
+            subtotal: Number(r.cantidad || 1) * Number(r.precio_unitario),
+          };
+        });
 
       itemsParaPOS = [...trabajosAcc, ...repuestosAcc];
     } else {
@@ -1185,6 +1328,15 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
                               <Printer className="w-3.5 h-3.5 mr-1" />
                               Imprimir Factura
                             </Button>
+                          ) : Number(rep.total_aceptado || 0) > 0 && !rep.cotizacion_completada ? (
+                            <Button
+                              size="sm"
+                              onClick={() => onNavigate && onNavigate('cotizaciones')}
+                              className="h-7 w-7 p-0 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center shadow-sm"
+                              title="Admin debe llenar campos faltantes en cotización"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                            </Button>
                           ) : (
                             <Button
                               size="sm"
@@ -1288,9 +1440,10 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
                             </div>
 
                             {rep.diagnostico_problemas ? (
-                              <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-200/60 dark:border-slate-750">
-                                <strong className="text-[#3498db]">Diagnóstico Técnico:</strong> {rep.diagnostico_problemas}
-                              </p>
+                              <div className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-200/60 dark:border-slate-750">
+                                <strong className="text-[#3498db] block mb-1">Diagnóstico Técnico:</strong>
+                                <div className="whitespace-pre-line pl-1">{rep.diagnostico_problemas}</div>
+                              </div>
                             ) : (
                               <p className="text-xs text-slate-400 italic">Sin diagnóstico especificado</p>
                             )}
@@ -1346,6 +1499,15 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
                                 >
                                   <Printer className="w-3.5 h-3.5 mr-1" />
                                   Imprimir Factura
+                                </Button>
+                              ) : Number(rep.total_aceptado || 0) > 0 && !rep.cotizacion_completada ? (
+                                <Button
+                                  size="sm"
+                                  onClick={() => onNavigate && onNavigate('cotizaciones')}
+                                  className="h-7 w-7 p-0 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center justify-center shadow-sm"
+                                  title="Admin debe llenar campos faltantes en cotización"
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5" />
                                 </Button>
                               ) : (
                                 <Button
@@ -1584,16 +1746,65 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Problemas Reales Detectados por el Técnico (Post-Chequeo) *
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Escribe los hallazgos técnicos reales (ej: Corto en línea de 19V, celda de batería degradada al 40%, pasta térmica petrificada)..."
-                  value={diagnosticoProblemas}
-                  onChange={(e) => setDiagnosticoProblemas(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 shadow-sm"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Problemas Reales Detectados por el Técnico (Post-Chequeo) *
+                  </label>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    Presiona <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-mono font-bold">Enter ↵</kbd> para agregar otro
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {diagnosticoProblemasList.map((prob, idx) => (
+                    <div key={idx} className="flex items-center gap-2 group">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-400 shrink-0">
+                        {idx + 1}
+                      </span>
+                      <input
+                        ref={(el) => (problemaInputRefs.current[idx] = el)}
+                        type="text"
+                        value={prob}
+                        onChange={(e) => handleProblemaChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleProblemaKeyDown(e, idx)}
+                        placeholder={
+                          idx === 0
+                            ? "Escribe el problema real (ej: Corto en línea principal de 19V)..."
+                            : idx === 1
+                            ? "Ej: Celda de batería degradada al 40%..."
+                            : idx === 2
+                            ? "Ej: Pasta térmica petrificada..."
+                            : "Escribe otro problema detectado..."
+                        }
+                        className="w-full text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3498db]/40 shadow-sm transition-all"
+                      />
+                      {diagnosticoProblemasList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProblema(idx)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors shrink-0"
+                          title="Eliminar este renglón"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="pt-1 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleAddProblema()}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#3498db] hover:text-[#2980b9] dark:hover:text-blue-400 transition-colors py-1 px-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar otro problema</span>
+                    </button>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {diagnosticoProblemasList.filter((p) => p.trim()).length} problema(s) especificado(s)
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Selector de Chequeo de Respaldo */}
@@ -2097,6 +2308,36 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
                 </div>
               )}
 
+              {/* Alerta de Cotización Incompleta (Admin) */}
+              {!viewingReporte.esta_facturado && !viewingReporte.factura && Number(viewingReporte.total_aceptado || 0) > 0 && !viewingReporte.cotizacion_completada && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div>
+                      <p className="font-bold text-amber-950 dark:text-amber-200">
+                        Admin debe llenar campos faltantes en cotización
+                      </p>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                        Debes asignar proveedor y costo de adquisición a los repuestos cotizados antes de poder facturar este informe.
+                      </p>
+                    </div>
+                  </div>
+                  {onNavigate && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setViewingReporte(null);
+                        onNavigate('cotizaciones');
+                      }}
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shrink-0 flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>Ir a Cotizaciones</span>
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* Datos de Cliente y Equipo */}
               <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-lg">
                 <div>
@@ -2116,7 +2357,7 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
               {/* Diagnóstico Técnico Real */}
               <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200 text-xs space-y-1">
                 <p className="font-bold text-blue-900 uppercase">Diagnóstico Técnico Detectado:</p>
-                <p className="text-slate-800">
+                <p className="text-slate-800 whitespace-pre-line">
                   {viewingReporte.diagnostico_problemas || 'Revisión general efectuada sin anomalías críticas adicionales.'}
                 </p>
               </div>
@@ -2211,6 +2452,24 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
               </div>
             </div>
 
+            {/* WhatsApp Feedback Banner */}
+            {informeWhatsAppFeedback && (
+              <div
+                className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                  informeWhatsAppFeedback.type === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                }`}
+              >
+                {informeWhatsAppFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{informeWhatsAppFeedback.message}</span>
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div className="flex items-center justify-between gap-3 pt-2">
               <Button
@@ -2222,6 +2481,16 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
               </Button>
 
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => handleSendInformeWhatsApp(viewingReporte)}
+                  disabled={sendingInformeWhatsApp}
+                  className="bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-[#25D366]/20 transition-all"
+                  title="Enviar informe técnico al WhatsApp del cliente"
+                >
+                  <WhatsAppIcon className="w-3.5 h-3.5 text-white" />
+                  <span>{sendingInformeWhatsApp ? 'Enviando...' : 'Enviar por WhatsApp'}</span>
+                </Button>
+
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -2250,6 +2519,20 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
                     <span>
                       Imprimir Factura ({viewingReporte.factura?.numero_factura || 'Emitida'})
                     </span>
+                  </Button>
+                ) : Number(viewingReporte.total_aceptado || 0) > 0 && !viewingReporte.cotizacion_completada ? (
+                  <Button
+                    onClick={() => {
+                      if (onNavigate) {
+                        setViewingReporte(null);
+                        onNavigate('cotizaciones');
+                      }
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                    title="Admin debe llenar campos faltantes en cotización"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Admin debe llenar campos faltantes en cotización</span>
                   </Button>
                 ) : (
                   <Button
@@ -2300,12 +2583,25 @@ export const ReportesPage: React.FC<ReportesPageProps> = ({
               ))}
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              {onNavigate ? (
+                <Button
+                  onClick={() => {
+                    setIncompleteItemsError(null);
+                    onNavigate('cotizaciones');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>Ir a Cotizaciones (Admin)</span>
+                </Button>
+              ) : <div />}
               <Button
                 onClick={() => setIncompleteItemsError(null)}
-                className="bg-[#3498db] hover:bg-[#2980b9] text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md shadow-[#3498db]/20"
+                variant="outline"
+                className="text-xs px-5 py-2 rounded-xl"
               >
-                Entendido, ir a completar
+                Cerrar
               </Button>
             </div>
           </div>

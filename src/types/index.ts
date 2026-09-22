@@ -176,6 +176,8 @@ export interface Reporte {
   total_rechazado?: number;
   esta_facturado?: boolean;
   factura?: Venta | null;
+  cotizacion_completada?: boolean;
+  items_incompletos_count?: number;
 }
 
 export interface DashboardStats {

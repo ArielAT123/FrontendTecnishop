@@ -1,8 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, X, FileText, Scissors } from 'lucide-react';
+import { Printer, X, FileText, Scissors, CheckCircle, AlertCircle } from 'lucide-react';
 import { Orden } from '../../types';
 import { Button } from '../ui/Button';
+import { WhatsAppIcon } from '../common/WhatsAppIcon';
+import { documentNotificationService } from '../../services/documentNotificationService';
 
 interface OrdenPrintModalProps {
   orden: Orden | null;
@@ -15,9 +17,33 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [whatsAppSuccess, setWhatsAppSuccess] = useState<string | null>(null);
+  const [whatsAppError, setWhatsAppError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen || !orden) return null;
+
+  const handleSendWhatsApp = async () => {
+    setSendingWhatsApp(true);
+    setWhatsAppSuccess(null);
+    setWhatsAppError(null);
+    try {
+      const res = await documentNotificationService.sendOrden(orden);
+      if (res.success) {
+        setWhatsAppSuccess('¡Orden de trabajo enviada exitosamente por WhatsApp!');
+        setTimeout(() => setWhatsAppSuccess(null), 5000);
+      } else {
+        setWhatsAppError(res.error || 'No se pudo enviar la orden por WhatsApp');
+        setTimeout(() => setWhatsAppError(null), 6000);
+      }
+    } catch (err: any) {
+      setWhatsAppError(err.message || 'Error de conexión con el servicio de mensajería');
+      setTimeout(() => setWhatsAppError(null), 6000);
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -201,6 +227,17 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
 
           <div className="flex items-center gap-3">
             <Button
+              onClick={handleSendWhatsApp}
+              disabled={sendingWhatsApp}
+              size="md"
+              className="bg-[#25D366] hover:bg-[#20ba59] text-white flex items-center gap-2 shadow-lg shadow-[#25D366]/20 font-medium transition-all"
+              title="Enviar notificación al WhatsApp del cliente"
+            >
+              <WhatsAppIcon className="w-4 h-4 text-white" />
+              <span>{sendingWhatsApp ? 'Enviando...' : 'Enviar WhatsApp'}</span>
+            </Button>
+
+            <Button
               onClick={handlePrint}
               size="md"
               className="bg-[#3498db] hover:bg-[#2980b9] text-white flex items-center gap-2 shadow-lg shadow-[#3498db]/30"
@@ -216,6 +253,20 @@ export const OrdenPrintModal: React.FC<OrdenPrintModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Feedback Alerts */}
+        {whatsAppSuccess && (
+          <div className="bg-emerald-500/20 border-b border-emerald-500/30 px-6 py-2 flex items-center gap-2 text-emerald-300 text-xs font-medium animate-fadeIn">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{whatsAppSuccess}</span>
+          </div>
+        )}
+        {whatsAppError && (
+          <div className="bg-rose-500/20 border-b border-rose-500/30 px-6 py-2 flex items-center gap-2 text-rose-300 text-xs font-medium animate-fadeIn">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{whatsAppError}</span>
+          </div>
+        )}
 
         {/* Modal Content / Printable Page */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-950/80 flex justify-center">

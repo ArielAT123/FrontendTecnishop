@@ -75,6 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentSection }) => {
     productos: 'Inventario y Repuestos',
     servicios: 'Catálogo de Servicios Técnicos',
     reportes: 'Informes Técnicos & Facturación',
+    cotizaciones: 'Cotizaciones y Costos de Servicio',
     configuracion: 'Ajustes del Sistema',
   };
 

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Lock,
   Unlock,
+  Calculator,
 } from 'lucide-react';
 import { AdminAuthModal } from '../auth/AdminAuthModal';
 
@@ -24,6 +25,7 @@ export type NavSection =
   | 'productos'
   | 'servicios'
   | 'reportes'
+  | 'cotizaciones'
   | 'configuracion';
 
 interface SidebarProps {
@@ -33,16 +35,16 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) => {
   const isTallerActive = currentSection === 'clientes' || currentSection === 'equipos';
-  const isServicioTecnicoActive = currentSection === 'ordenes' || currentSection === 'reportes';
+  const isServicioTecnicoActive = currentSection === 'ordenes' || currentSection === 'reportes' || currentSection === 'cotizaciones';
   const isCatalogoActive = currentSection === 'productos' || currentSection === 'servicios';
 
   const [tallerOpen, setTallerOpen] = useState(true);
   const [servicioTecnicoOpen, setServicioTecnicoOpen] = useState(true);
   const [catalogoOpen, setCatalogoOpen] = useState(true);
 
-  // Control de seguridad con clave de administrador para Catálogo & Tarifas
+  // Control de seguridad con clave de administrador para Catálogo & Tarifas, Cotizaciones y Configuración
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [pendingTargetSection, setPendingTargetSection] = useState<'productos' | 'servicios'>('productos');
+  const [pendingTargetSection, setPendingTargetSection] = useState<'productos' | 'servicios' | 'cotizaciones' | 'configuracion'>('productos');
   const [isCatalogoUnlocked, setIsCatalogoUnlocked] = useState(() => {
     return sessionStorage.getItem('catalogo_admin_unlocked') === 'true';
   });
@@ -57,16 +59,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
     }
   };
 
+  const handleNavigateCotizaciones = () => {
+    const isUnlocked = sessionStorage.getItem('catalogo_admin_unlocked') === 'true';
+    if (isUnlocked) {
+      onNavigate('cotizaciones');
+    } else {
+      setPendingTargetSection('cotizaciones');
+      setAuthModalOpen(true);
+    }
+  };
+
   const handleToggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isCatalogoUnlocked) {
       sessionStorage.removeItem('catalogo_admin_unlocked');
       setIsCatalogoUnlocked(false);
-      if (currentSection === 'productos' || currentSection === 'servicios') {
+      if (currentSection === 'productos' || currentSection === 'servicios' || currentSection === 'cotizaciones') {
         onNavigate('dashboard');
       }
     } else {
-      setPendingTargetSection('productos');
+      setPendingTargetSection('configuracion');
       setAuthModalOpen(true);
     }
   };
@@ -262,6 +274,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
                 />
                 <span>Informes Técnicos</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleNavigateCotizaciones}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
+                  currentSection === 'cotizaciones'
+                    ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Calculator
+                    className={`w-4 h-4 transition-colors ${
+                      currentSection === 'cotizaciones' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                    }`}
+                  />
+                  <span>Cotizaciones</span>
+                </div>
+                {!isCatalogoUnlocked && <Lock className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors" />}
+              </button>
             </div>
           )}
         </div>
@@ -283,32 +315,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
               <span className={isCatalogoActive ? 'text-white font-semibold' : ''}>Catálogo & Tarifas</span>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleToggleLock}
-                className="p-1 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                title={isCatalogoUnlocked ? 'Modo Admin desbloqueado (Click para bloquear)' : 'Catálogo protegido por clave de administrador'}
-              >
-                {isCatalogoUnlocked ? (
-                  <Unlock className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCatalogoOpen(!catalogoOpen)}
-                className="p-1 text-slate-400 hover:text-white transition-colors"
-              >
-                <ChevronDown
-                  className={`w-4 h-4 transition-transform duration-200 ${
-                    catalogoOpen ? 'rotate-180 text-blue-300' : ''
-                  }`}
-                />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setCatalogoOpen(!catalogoOpen)}
+              className="p-1 text-slate-400 hover:text-white transition-colors shrink-0"
+            >
+              <ChevronDown
+                className={`w-4 h-4 transition-transform duration-200 ${
+                  catalogoOpen ? 'rotate-180 text-blue-300' : ''
+                }`}
+              />
+            </button>
           </div>
 
           {catalogoOpen && (
@@ -358,22 +375,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
 
         {/* Bottom Direct Links */}
         <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => onNavigate('configuracion')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group ${
+          <div
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group cursor-pointer ${
               currentSection === 'configuracion'
                 ? 'bg-[#3498db] text-white shadow-lg shadow-[#3498db]/35 font-semibold'
                 : 'text-slate-200 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <Settings
-              className={`w-5 h-5 transition-colors ${
-                currentSection === 'configuracion' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-              }`}
-            />
-            <span>Configuración</span>
-          </button>
+            <div
+              onClick={() => onNavigate('configuracion')}
+              className="flex items-center gap-3 flex-1"
+            >
+              <Settings
+                className={`w-5 h-5 transition-colors ${
+                  currentSection === 'configuracion' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              />
+              <span>Configuración</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleLock}
+              className="p-1 rounded-md hover:bg-white/15 text-slate-400 hover:text-white transition-colors shrink-0"
+              title={isCatalogoUnlocked ? 'Modo Admin desbloqueado (Click para bloquear)' : 'Modo Admin protegido por clave de administrador'}
+            >
+              {isCatalogoUnlocked ? (
+                <Unlock className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -397,7 +430,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
           setAuthModalOpen(false);
           onNavigate(pendingTargetSection);
         }}
-        targetSectionName={pendingTargetSection === 'productos' ? 'Productos y Repuestos' : 'Servicios Técnicos'}
+        targetSectionName={
+          pendingTargetSection === 'productos'
+            ? 'Productos y Repuestos'
+            : pendingTargetSection === 'servicios'
+            ? 'Servicios Técnicos'
+            : pendingTargetSection === 'cotizaciones'
+            ? 'Cotizaciones y Costos'
+            : 'Configuración del Sistema'
+        }
       />
     </aside>
   );

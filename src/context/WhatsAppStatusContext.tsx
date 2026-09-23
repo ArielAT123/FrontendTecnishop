@@ -22,7 +22,11 @@ export interface WhatsAppStatusContextType {
 }
 
 const MESSAGE_SERVER_URL =
-  (import.meta as any).env?.VITE_MESSAGE_SERVER_URL || 'http://localhost:5052';
+  (import.meta as any).env?.VITE_MESSAGE_SERVER_URL || (
+    typeof window !== 'undefined' && window.location.port === '5173'
+      ? 'http://localhost:5052'
+      : '/message-api'
+  );
 
 const WhatsAppStatusContext = createContext<WhatsAppStatusContextType | undefined>(undefined);
 

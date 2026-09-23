@@ -34,6 +34,7 @@ const MainRouter: React.FC = () => {
   const [selectedOrderForReport, setSelectedOrderForReport] = useState<Orden | null>(null);
 
   if (isLoading) {
+
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#3498db] to-[#2980b9] flex items-center justify-center text-white shadow-xl shadow-[#3498db]/30 animate-pulse mb-4">
@@ -49,6 +50,7 @@ const MainRouter: React.FC = () => {
   if (!isAuthenticated) {
     return <LoginPage />;
   }
+
 
   return (
     <Layout>

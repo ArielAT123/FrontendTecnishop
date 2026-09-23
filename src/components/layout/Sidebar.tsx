@@ -15,6 +15,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { AdminAuthModal } from '../auth/AdminAuthModal';
+import { SidebarNavItem } from './SidebarNavItem';
 
 export type NavSection =
   | 'dashboard'
@@ -42,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
   const [servicioTecnicoOpen, setServicioTecnicoOpen] = useState(true);
   const [catalogoOpen, setCatalogoOpen] = useState(true);
 
-  // Control de seguridad con clave de administrador para Catálogo & Tarifas, Cotizaciones y Configuración
+  // Control de seguridad con clave de administrador
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [pendingTargetSection, setPendingTargetSection] = useState<'productos' | 'servicios' | 'cotizaciones' | 'configuracion'>('productos');
   const [isCatalogoUnlocked, setIsCatalogoUnlocked] = useState(() => {
@@ -109,44 +110,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
 
       {/* Navigation Links */}
       <div className="flex-1 py-3 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
-        {/* Direct Links */}
-        <button
-          type="button"
+        <SidebarNavItem
+          icon={LayoutDashboard}
+          label="Dashboard"
+          isActive={currentSection === 'dashboard'}
           onClick={() => onNavigate('dashboard')}
-          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group ${
-            currentSection === 'dashboard'
-              ? 'bg-[#3498db] text-white shadow-lg shadow-[#3498db]/35 font-semibold'
-              : 'text-slate-200 hover:bg-white/10 hover:text-white'
-          }`}
-        >
-          <LayoutDashboard
-            className={`w-5 h-5 transition-colors ${
-              currentSection === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-            }`}
-          />
-          <span>Dashboard</span>
-        </button>
+        />
 
-        <button
-          type="button"
+        <SidebarNavItem
+          icon={ShoppingCart}
+          label="Punto de Venta (POS)"
+          isActive={currentSection === 'ventas'}
           onClick={() => onNavigate('ventas')}
-          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group ${
-            currentSection === 'ventas'
-              ? 'bg-[#3498db] text-white shadow-lg shadow-[#3498db]/35 font-semibold'
-              : 'text-slate-200 hover:bg-white/10 hover:text-white'
-          }`}
-        >
-          <ShoppingCart
-            className={`w-5 h-5 transition-colors ${
-              currentSection === 'ventas' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-            }`}
-          />
-          <span>Punto de Venta (POS)</span>
-        </button>
+        />
 
-        {/* ======================================================== */}
-        {/* COLLAPSIBLE GROUP 1: Gestión de Taller                   */}
-        {/* ======================================================== */}
+        {/* COLLAPSIBLE GROUP 1: Gestión de Clientes */}
         <div className="pt-1">
           <button
             type="button"
@@ -174,46 +152,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
 
           {tallerOpen && (
             <div className="ml-5 pl-3 border-l-2 border-slate-700/60 space-y-1 py-1.5">
-              <button
-                type="button"
+              <SidebarNavItem
+                icon={Users}
+                label="Directorio de Clientes"
+                isActive={currentSection === 'clientes'}
                 onClick={() => onNavigate('clientes')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
-                  currentSection === 'clientes'
-                    ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <Users
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'clientes' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Directorio de Clientes</span>
-              </button>
-
-              <button
-                type="button"
+                isNested
+              />
+              <SidebarNavItem
+                icon={Laptop}
+                label="Equipos y Dispositivos"
+                isActive={currentSection === 'equipos'}
                 onClick={() => onNavigate('equipos')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
-                  currentSection === 'equipos'
-                    ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <Laptop
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'equipos' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Equipos y Dispositivos</span>
-              </button>
+                isNested
+              />
             </div>
           )}
         </div>
 
-        {/* ======================================================== */}
-        {/* COLLAPSIBLE GROUP 2: Servicio Técnico                    */}
-        {/* ======================================================== */}
+        {/* COLLAPSIBLE GROUP 2: Servicio Técnico */}
         <div className="pt-1">
           <button
             type="button"
@@ -241,40 +198,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
 
           {servicioTecnicoOpen && (
             <div className="ml-5 pl-3 border-l-2 border-slate-700/60 space-y-1 py-1.5">
-              <button
-                type="button"
+              <SidebarNavItem
+                icon={ClipboardList}
+                label="Órdenes de Trabajo"
+                isActive={currentSection === 'ordenes'}
                 onClick={() => onNavigate('ordenes')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
-                  currentSection === 'ordenes'
-                    ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <ClipboardList
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'ordenes' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Órdenes de Trabajo</span>
-              </button>
-
-              <button
-                type="button"
+                isNested
+              />
+              <SidebarNavItem
+                icon={FileText}
+                label="Informes Técnicos"
+                isActive={currentSection === 'reportes'}
                 onClick={() => onNavigate('reportes')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 group ${
-                  currentSection === 'reportes'
-                    ? 'bg-[#3498db] text-white font-semibold shadow-md shadow-[#3498db]/30'
-                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <FileText
-                  className={`w-4 h-4 transition-colors ${
-                    currentSection === 'reportes' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                />
-                <span>Informes Técnicos</span>
-              </button>
-
+                isNested
+              />
               <button
                 type="button"
                 onClick={handleNavigateCotizaciones}
@@ -298,9 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
           )}
         </div>
 
-        {/* ======================================================== */}
-        {/* COLLAPSIBLE GROUP 3: Catálogo y Tarifas                  */}
-        {/* ======================================================== */}
+        {/* COLLAPSIBLE GROUP 3: Catálogo y Tarifas */}
         <div className="pt-1">
           <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group cursor-pointer hover:bg-white/5">
             <div
@@ -421,7 +356,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onNavigate }) 
         </div>
       </div>
 
-      {/* Modal de Autenticación de Administrador para Catálogo & Tarifas */}
+      {/* Modal de Autenticación de Administrador */}
       <AdminAuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}

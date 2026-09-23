@@ -8,6 +8,7 @@ export interface DispatchDocumentResponse {
   eventId?: string;
   messageId?: string;
   renderedMessage?: string;
+  link?: string;
   data?: any;
 }
 
@@ -112,6 +113,40 @@ export const documentNotificationService = {
         err.response?.data?.message ||
         err.message ||
         'Error al enviar el informe técnico por WhatsApp';
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+  },
+
+  /**
+   * Dispatches a Quotation Approval link notification to client via WhatsApp
+   */
+  async sendCotizacion(reporte: any, phoneOverride?: string): Promise<DispatchDocumentResponse> {
+    try {
+      const response = await apiClient.post(`/reportes/${reporte.id}/enviar-cotizacion-whatsapp/`, {
+        telefono: phoneOverride || undefined,
+      });
+
+      const resData = response.data || {};
+      const innerData = resData.data || {};
+
+      return {
+        success: true,
+        message: '¡Enlace de cotización enviado por WhatsApp al cliente!',
+        link: resData.link,
+        eventId: innerData.eventId,
+        messageId: innerData.messageId,
+        renderedMessage: innerData.renderedMessage || resData.text,
+        data: innerData,
+      };
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        'Error al enviar la cotización por WhatsApp';
       return {
         success: false,
         error: errorMsg,
